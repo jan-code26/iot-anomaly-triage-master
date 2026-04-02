@@ -209,3 +209,8 @@ __marimo__/
 
 # Mac OS
 .DS_Store
+
+# Dataset files (large, not committed)
+data/raw/
+data/processed/
+*.zip
