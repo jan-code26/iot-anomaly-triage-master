@@ -1,13 +1,14 @@
 """
 Pydantic v2 schemas for the IoT Anomaly Triage ingestion pipeline.
 
-TelemetryReading  — validates incoming sensor data (POST /ingest body)
-TelemetryWindowOut — what the API returns after a successful insert
+TelemetryReading    — validates incoming sensor data (POST /ingest body)
+SensorStatus        — per-sensor health status
+TelemetryWindowOut  — what the API returns after a successful insert
 """
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -65,10 +66,19 @@ class TelemetryReading(BaseModel):
         return self
 
 
+class SensorStatus(BaseModel):
+    """Per-sensor health status, populated by the forward-fill service."""
+
+    sensor_id: str
+    status: Literal["ok", "stale", "offline"]
+    last_valid_value: Optional[float] = None
+    last_valid_cycle: Optional[int] = None
+
+
 class TelemetryWindowOut(BaseModel):
     """
     Response model returned after a telemetry reading is saved to the database.
-    Confirms the row ID, what was stored, and when.
+    Confirms the row ID, what was stored, imputation info, and any warnings.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -77,4 +87,6 @@ class TelemetryWindowOut(BaseModel):
     engine_id: int
     cycle: int
     imputation_density: float
+    stale_sensors: list[str] = []
+    warnings: list[str] = []
     created_at: datetime

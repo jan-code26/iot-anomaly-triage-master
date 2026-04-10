@@ -14,7 +14,7 @@ from sqlalchemy import (
     Text,
     TIMESTAMP,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.sql import text
 
 metadata = MetaData()
@@ -56,6 +56,8 @@ telemetry_windows = Table(
     Column("op_setting_3", Float),
     # fraction of sensor values that were imputed (0.0 = no imputation)
     Column("imputation_density", Float, nullable=False, server_default=text("0.0")),
+    # list of sensor names that were stale (> 5 cycles since last valid reading)
+    Column("stale_sensors", ARRAY(Text), nullable=False, server_default=text("'{}'")),
     Column(
         "created_at",
         TIMESTAMP(timezone=True),
