@@ -10,3 +10,8 @@ numpy==2.2.1
 groq>=0.12.0
 google-generativeai>=0.8.0
 requests>=2.32.0
+scikit-learn>=1.4.0
+dowhy==0.11.1
+langgraph==0.2.76
+langchain-core==0.3.29
+networkx>=3.0
