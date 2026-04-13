@@ -91,3 +91,31 @@ class TelemetryWindowOut(BaseModel):
     warnings: list[str] = []
     llm_explanation: Optional[str] = None
     created_at: datetime
+
+
+class FeedbackRequest(BaseModel):
+    alert_event_id: UUID
+    label: Literal["TRUE_POSITIVE", "FALSE_POSITIVE", "UNCERTAIN"]
+    override: bool = False
+
+
+class FeedbackOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    alert_event_id: UUID
+    label: str
+    override: bool
+    submitted_at: datetime
+
+
+class AlertEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    telemetry_window_id: UUID
+    triggered_at: datetime
+    anomaly_score: float
+    decision: str
+    confidence: float
+    cache_hit: bool

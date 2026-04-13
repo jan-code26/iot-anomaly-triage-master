@@ -1,11 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, update
 
 from backend.anomaly import compute_anomaly_score, make_decision
 from backend.database import engine
-from backend.models import alert_events, maintenance_events, telemetry_windows
-from backend.schemas import TelemetryReading, TelemetryWindowOut
+from backend.models import alert_events, human_feedback, maintenance_events, telemetry_windows
+from backend.schemas import (
+    AlertEventOut, FeedbackOut, FeedbackRequest,
+    TelemetryReading, TelemetryWindowOut,
+)
 from backend.services.causal_scorer import compute_causal_score, save_dowhy_result
 from backend.services.gtest_monitor import gtest_monitor
 from backend.services.psi_monitor import psi_monitor
@@ -241,3 +244,106 @@ def reset_baseline(body: BaselineResetRequest):
         psi_monitor.clear_baseline(s)
 
     return {"status": "ok", "message": f"Baseline reset for engine {body.engine_id}"}
+
+
+# ---------------------------------------------------------------------------
+# Human feedback loop
+# ---------------------------------------------------------------------------
+
+@app.post("/feedback", response_model=FeedbackOut, status_code=201)
+def submit_feedback(body: FeedbackRequest):
+    """
+    Submit an operator label for an alert event.
+
+    label must be one of: TRUE_POSITIVE, FALSE_POSITIVE, UNCERTAIN.
+    Set override=True to also update the alert_events decision immediately
+    (sets confidence=1.0 — operator is treated as ground truth).
+
+    The LangGraph cache_lookup node reads these labels: ≥2 FALSE_POSITIVE
+    labels for the same engine triggers a 0.7 confidence penalty on future alerts.
+    """
+    try:
+        with engine.begin() as conn:
+            alert_row = conn.execute(
+                select(alert_events.c.id)
+                .where(alert_events.c.id == body.alert_event_id)
+            ).mappings().one_or_none()
+            if alert_row is None:
+                raise HTTPException(status_code=404, detail="Alert event not found")
+
+            result = conn.execute(
+                insert(human_feedback).values(
+                    alert_event_id=body.alert_event_id,
+                    label=body.label,
+                    override=body.override,
+                ).returning(
+                    human_feedback.c.id,
+                    human_feedback.c.submitted_at,
+                )
+            )
+            row = result.mappings().one()
+
+            if body.override:
+                conn.execute(
+                    update(alert_events)
+                    .where(alert_events.c.id == body.alert_event_id)
+                    .values(decision=body.label, confidence=1.0)
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return FeedbackOut(
+        id=row["id"],
+        alert_event_id=body.alert_event_id,
+        label=body.label,
+        override=body.override,
+        submitted_at=row["submitted_at"],
+    )
+
+
+@app.get("/alerts/recent", response_model=list[AlertEventOut])
+def get_recent_alerts(limit: int = 20):
+    """Return the most recent alert events, newest first."""
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                select(
+                    alert_events.c.id,
+                    alert_events.c.telemetry_window_id,
+                    alert_events.c.triggered_at,
+                    alert_events.c.anomaly_score,
+                    alert_events.c.decision,
+                    alert_events.c.confidence,
+                    alert_events.c.cache_hit,
+                )
+                .order_by(alert_events.c.triggered_at.desc())
+                .limit(limit)
+            ).mappings().all()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return [AlertEventOut(**dict(row)) for row in rows]
+
+
+@app.get("/alerts/{alert_id}/feedback", response_model=list[FeedbackOut])
+def get_alert_feedback(alert_id: str):
+    """Return all operator feedback submitted for a given alert event."""
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                select(
+                    human_feedback.c.id,
+                    human_feedback.c.alert_event_id,
+                    human_feedback.c.label,
+                    human_feedback.c.override,
+                    human_feedback.c.submitted_at,
+                )
+                .where(human_feedback.c.alert_event_id == alert_id)
+                .order_by(human_feedback.c.submitted_at.desc())
+            ).mappings().all()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return [FeedbackOut(**dict(row)) for row in rows]

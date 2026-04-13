@@ -1067,3 +1067,61 @@ silently, and the test continues.  `physics_veto` tests use `engine_id=999` whic
 an empty G-test buffer → `should_run(999)` returns `False` → veto is never triggered.
 
 All 10 tests pass in < 0.4 seconds with no network calls.
+
+---
+
+## Days 25-28 — Human Feedback Loop
+
+**Goal**: Give operators an API surface to label alert events, closing the feedback loop that the `cache_lookup` node (built in Days 18-24) already queries.
+
+### What was built
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/feedback` | POST | Submit an operator label for an alert event |
+| `/alerts/recent` | GET | List recent alert events (for operators to review) |
+| `/alerts/{alert_id}/feedback` | GET | Retrieve all labels submitted for one alert |
+
+**Schemas added** (`backend/schemas.py`):
+- `FeedbackRequest` — POST body: `alert_event_id`, `label`, `override`
+- `FeedbackOut` — response after label submission
+- `AlertEventOut` — response for `/alerts/recent`
+
+**No new DB tables** — all three endpoints use the `human_feedback` and `alert_events` tables created in the Day 1-7 schema migration.
+
+### Design decisions
+
+**`except HTTPException: raise` before `except Exception`**:
+The `submit_feedback` endpoint raises a `404` inside the `try` block if the alert doesn't
+exist.  Without an explicit `except HTTPException: raise` before the catch-all
+`except Exception`, the `404` would be swallowed and re-raised as a `500`.  This pattern
+is required any time you raise `HTTPException` inside a `try/except Exception` block.
+
+**`override=True` sets `confidence=1.0`**:
+When an operator marks their label as an override, they are asserting ground truth —
+no model uncertainty applies.  The `alert_events.confidence` column is set to `1.0` to
+reflect this.  The `decision` column is also updated to the operator's label so downstream
+queries (dashboards, reports) see the corrected value immediately.
+
+**How this closes the cache_lookup feedback loop**:
+The `cache_lookup` node in the LangGraph agent counts `FALSE_POSITIVE` labels for the
+same engine via a triple-join query.  Once ≥2 labels exist, it sets `cache_penalty=0.7`,
+which `decision_writer` applies to reduce `final_confidence` by 30% on the next alert for
+that engine.  The feedback loop is now complete:
+```
+/ingest → LangGraph agent → alert_events row
+            ↓
+   operator reviews via GET /alerts/recent
+            ↓
+   operator labels via POST /feedback
+            ↓
+   cache_lookup reads label on next /ingest → 0.7 confidence penalty applied
+```
+
+### Test strategy
+
+`tests/test_feedback.py` — 6 tests, pure Pydantic validation, no DB or server needed.
+
+Same `os.environ.setdefault("DATABASE_URL", ...)` guard as `test_agent_nodes.py`.
+Tests cover all three valid labels, the invalid-label rejection, and both `override` states.
+All 6 tests pass with no network calls.
