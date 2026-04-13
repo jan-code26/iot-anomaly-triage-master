@@ -89,4 +89,5 @@ class TelemetryWindowOut(BaseModel):
     imputation_density: float
     stale_sensors: list[str] = []
     warnings: list[str] = []
+    llm_explanation: Optional[str] = None
     created_at: datetime

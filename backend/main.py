@@ -128,6 +128,34 @@ def ingest(reading: TelemetryReading):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
+    # --- LangGraph agent (runs outside the main DB transaction) ---
+    # LLM latency (0.5-2s) must not hold the connection open.
+    # Agent is non-fatal: if anything raises, we fall back to pre-agent decision.
+    llm_explanation = None
+    if combined_score >= 0.3:
+        try:
+            from backend.agent.graph import run_triage_agent
+            agent_result = run_triage_agent({
+                "engine_id": reading.engine_id,
+                "cycle": reading.cycle,
+                "telemetry_window_id": str(row["id"]),
+                "alert_event_id": alert_event_id,
+                "z_score": z_score,
+                "causal_score": causal_score,
+                "combined_score": combined_score,
+                "causal_details": causal_details,
+                "reading": reading_dict,
+                "stale_sensors": stale_sensors,
+                "agent_warnings": [],
+            })
+            llm_explanation = agent_result.get("llm_explanation")
+            for w in agent_result.get("agent_warnings", []):
+                warnings.append(w)
+        except Exception as exc:
+            warnings.append(
+                f"Agent unavailable (pre-agent decision kept): {str(exc)[:80]}"
+            )
+
     return TelemetryWindowOut(
         id=row["id"],
         engine_id=row["engine_id"],
@@ -135,6 +163,7 @@ def ingest(reading: TelemetryReading):
         imputation_density=row["imputation_density"],
         stale_sensors=row["stale_sensors"] or [],
         warnings=warnings,
+        llm_explanation=llm_explanation,
         created_at=row["created_at"],
     )
 

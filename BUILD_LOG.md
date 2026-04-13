@@ -903,3 +903,167 @@ A minimal React dashboard (or Streamlit for speed) that:
 | IF contamination | 0.05 | 5% of training data assumed anomalous |
 | Neon pool size | 5 | Free tier allows ~10 total connections |
 | Pool recycle | 300s | Prevent stale connections from Neon's idle timeout |
+| Physics veto coefficient | 0.5 | Halve causal score when G-test detects sensor decoupling |
+| Cache penalty | 0.7 | Reduce confidence 30% on ≥2 FALSE_POSITIVE operator labels |
+
+---
+
+## Days 18–24 — LangGraph Triage Agent
+
+### What was built
+
+A 7-node synchronous LangGraph agent that runs on every `/ingest` reading with
+`combined_score >= 0.3`.  For readings below that threshold the agent is skipped
+entirely — no LLM call, no trace writes, negligible overhead.
+
+**New files:**
+
+| File | Purpose |
+|------|---------|
+| `backend/agent/__init__.py` | Package marker |
+| `backend/agent/state.py` | `AgentState` TypedDict (`total=False`) |
+| `backend/agent/nodes.py` | 7 node functions + `_write_trace()` helper |
+| `backend/agent/graph.py` | Compiled graph singleton + `run_triage_agent()` |
+| `tests/test_agent_nodes.py` | 10 unit tests — 0 DB calls required |
+
+**Modified files:**
+
+| File | Change |
+|------|--------|
+| `backend/schemas.py` | Added `llm_explanation: Optional[str] = None` to `TelemetryWindowOut` |
+| `backend/main.py` | Added agent invocation block after the main `engine.begin()` transaction |
+
+---
+
+### Node-by-node design decisions
+
+**Node 1: `ingest_validator`**
+
+Counts how many of the 5 causal DAG sensors (sensor_3, 4, 9, 11, 15) are either
+in `stale_sensors` or `None` in the reading dict.  Sets `data_quality_ok = (count <= 3)`.
+This flag is available to all downstream nodes via state, but in Phase 3 the agent
+continues regardless — Phase 4 could add a conditional edge that short-circuits to
+`decision_writer` if `data_quality_ok` is False.
+
+**Node 2: `regime_classifier`**
+
+Always returns `cluster_0`.  FD001 has one operating condition (all op_settings
+near-constant).  Phase 4 will replace this with a KMeans classifier trained on
+FD002's six op_setting clusters and stored centroids.
+
+**Node 3: `causal_reasoner`**
+
+Passes the pre-computed `causal_score` through as `causal_score_refined`.  The score
+was already computed by `compute_causal_score()` in `/ingest` before the agent was
+invoked.  Re-running it here would be redundant for FD001 but is where Phase 4 will
+swap in regime-specific regression coefficients.
+
+**Node 4: `physics_veto`**
+
+Calls `gtest_monitor.should_run(engine_id)` — returns `True` only when the per-engine
+deque has accumulated 100 readings.  If the G-test finds sensor_11 and sensor_15
+decorrelated AND `causal_score_refined >= 0.5`, the score is halved and
+`physics_veto_applied = True`.  The 0.5 coefficient and the 0.5 threshold are both
+hyperparameters to tune in Phase 4 against the lead_time_measurements table.
+
+Most dev/test requests skip the veto because the engine's buffer never reaches 100.
+
+**Node 5: `cache_lookup`**
+
+Two DB queries inside one `try/except`:
+
+1. JOIN `dowhy_results ↔ telemetry_windows` — find prior readings for the same engine
+   with causal_score within ±0.05.  `from_cache = True` if > 1 row found (the
+   current row was just inserted, so any additional matches are prior readings).
+
+2. Triple-JOIN `human_feedback → alert_events → telemetry_windows` — count
+   FALSE_POSITIVE labels for this engine.  If ≥ 2 exist, `cache_penalty = 0.7`.
+
+The failure of either query is non-fatal and appends an `agent_warnings` entry.
+
+**Node 6: `llm_explainer`**
+
+Calls Groq (`llama-3.1-8b-instant`, 150 tokens, temp 0.2) by default, Gemini
+(`gemini-1.5-flash`) when `LLM_PROVIDER=gemini`.  Both LLM client constructors use
+lazy imports (`from groq import Groq` inside the function body) so the module loads
+cleanly in unit tests with no API keys present.
+
+The rule-based fallback lists the top-2 sensors by causal residual z-score and
+mentions the physics veto if it fired.
+
+**Node 7: `decision_writer`**
+
+```python
+final_score = round(0.5 * z_score + 0.5 * causal_score_refined, 6)
+final_decision, final_confidence = make_decision(final_score)
+if cache_penalty < 1.0:
+    final_confidence = round(final_confidence * cache_penalty, 4)
+```
+
+Then UPDATEs the `alert_events` row (inserted by `/ingest` earlier in the same
+request) with the refined values.  The UPDATE is wrapped in `try/except` — failure
+is non-fatal.
+
+---
+
+### Why synchronous `invoke()` not `ainvoke()`
+
+The existing `/ingest` endpoint is a plain `def`, using psycopg2-binary and
+SQLAlchemy's QueuePool.  Converting to async would require:
+- Switching to `asyncpg` for the DB adapter
+- Wrapping every `engine.begin()` call in `await`
+- Converting every service (sensor_service, gtest_monitor, psi_monitor) to async
+
+That is a large, risky refactor.  LangGraph 0.2.76 supports both `invoke()` and
+`ainvoke()`.  We use the synchronous version throughout.
+
+### Why `total=False` TypedDict not Pydantic
+
+LangGraph's state merger expects node functions to return plain Python dicts with
+only the keys they set.  Using a Pydantic model requires a `pydantic_v1` compatibility
+shim that was removed in LangGraph 0.2.x.  `TypedDict(total=False)` is the idiomatic
+choice — every field is optional at the TypedDict level, which matches how LangGraph
+merges partial returns.
+
+### Why the agent runs outside `engine.begin()`
+
+The main `/ingest` flow opens one `engine.begin()` transaction to insert
+`telemetry_windows`, save a `dowhy_results` row, and insert `alert_events`.  If the
+agent were invoked inside that block, a 0.5-2s Groq API call would hold the
+connection open across network I/O — burning one of the 5 pool slots and risking a
+Neon idle-timeout disconnect.
+
+The agent invocation is placed after the `with engine.begin()` block closes.  Each
+node that needs the DB (`cache_lookup`, `decision_writer`, `_write_trace`) opens its
+own short-lived `engine.begin()` connection for just that operation.
+
+### Why `_write_trace()` has its own connection
+
+Trace writes must never fail the request.  If `_write_trace()` shared the same
+connection as the main insert, a trace failure would roll back the telemetry row too.
+Giving it its own `engine.begin()` call isolates the failure — the trace is
+best-effort, the telemetry insert is guaranteed.
+
+### LangGraph 0.2.76 gotchas
+
+- `END` is imported from `langgraph.graph`, NOT `langgraph.constants`
+- `graph.compile()` takes no arguments — no checkpointer needed in 0.2.x
+- Node functions must return a **partial dict** of only the keys they set;
+  LangGraph merges it into the accumulated state
+- `_compiled_graph = _build_graph().compile()` at module level → compiled once at
+  import, not once per request
+
+### Test strategy
+
+`tests/test_agent_nodes.py` — 10 tests, 0 DB connections required.
+
+```
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost/test_db")
+```
+
+This dummy URL is set before any `backend.*` import so `database.py` does not raise
+`RuntimeError`.  The `_write_trace()` calls inside nodes attempt a connection, fail
+silently, and the test continues.  `physics_veto` tests use `engine_id=999` which has
+an empty G-test buffer → `should_run(999)` returns `False` → veto is never triggered.
+
+All 10 tests pass in < 0.4 seconds with no network calls.
