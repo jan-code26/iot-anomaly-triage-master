@@ -2,8 +2,12 @@
 G-test structural validation for thermodynamically coupled sensor pairs.
 
 sensor_11 (HPC outlet temperature) and sensor_15 (HPC outlet pressure)
-are physically coupled — high temperature should correlate with high pressure.
-If this coupling breaks, it suggests a sensor fault, not a real anomaly.
+are coupled via the isentropic compression relation:
+
+    T2/T1 = (P2/P1)^((gamma-1)/gamma),  gamma ~ 1.4 for air
+
+Both sensors must rise and fall together through the compressor. If this
+coupling breaks, it suggests a sensor fault, not a real anomaly.
 
 The G-test checks whether the joint distribution of the two sensors
 looks like independent variables (coupling broken) vs correlated (normal).
@@ -18,7 +22,7 @@ from collections import defaultdict, deque
 
 BUFFER_SIZE = 100       # readings before running the test
 NUM_BINS = 5            # bins per sensor for the contingency table
-G_THRESHOLD = 9.49      # chi-squared critical value at p=0.05, df=4 (2x2 bins minus 1)^2
+G_THRESHOLD = 26.30     # chi-squared critical value at p=0.05, df=16 ((5-1)*(5-1) for 5×5 table)
 
 
 class GTestMonitor:

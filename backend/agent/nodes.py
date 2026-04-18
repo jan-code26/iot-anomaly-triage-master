@@ -176,6 +176,9 @@ def physics_veto(state: dict) -> dict:
 
     The G-test (computed by gtest_monitor) checks whether sensor_11 (HPC
     outlet temp) and sensor_15 (HPC outlet pressure) are still correlated.
+    In normal operation these sensors obey the isentropic compression relation
+        T2/T1 = (P2/P1)^((gamma-1)/gamma), gamma ~ 1.4 for air,
+    so a loss of correlation signals a sensor fault, not engine degradation.
     If they appear independent AND the causal score is high (>= 0.5), the
     anomaly is more likely a sensor fault than real engine degradation — so
     we halve the causal score.

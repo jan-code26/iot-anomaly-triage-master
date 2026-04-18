@@ -532,7 +532,7 @@ After calling `/baselines/reset`, the next 200 readings will rebuild the baselin
 `sensor_11` = HPC (High Pressure Compressor) outlet temperature.
 `sensor_15` = HPC outlet pressure.
 
-In a compressor, temperature and pressure are thermodynamically coupled — they rise and fall together. If this coupling breaks, it means one of the sensors is faulty, not that the engine is failing.
+In an HPC, temperature and pressure are coupled via the isentropic compression relation — T₂/T₁ = (P₂/P₁)^((γ−1)/γ), γ ≈ 1.4 for air — so both outlet readings must rise and fall together. If this coupling breaks, it means one of the sensors is faulty, not that the engine is failing.
 
 This is the "physics veto" concept: before the LLM agent calls an alert, the system checks whether the reading violates known physical laws. If sensor_11 spikes but sensor_15 does not move, something is wrong with sensor_11, not the engine.
 
@@ -1257,3 +1257,41 @@ This is the correct tradeoff for a predictive maintenance system where missing a
 costs more than an unnecessary inspection.
 
 **Day 29 complete.**
+
+---
+
+### Day 30 — Physics and statistics corrections in veto node
+
+**Files changed:**
+- `backend/services/gtest_monitor.py`
+- `backend/agent/nodes.py`
+- `notebooks/01_cmapss_eda.ipynb` (cell 21)
+- `BUILD_LOG.md` (Day 13 section)
+
+**Fix 1 — Physics: ideal gas law → isentropic compression relation**
+
+The veto node's documentation cited the ideal gas law (PV = nRT) to justify why sensor_11 (HPC outlet temperature) and sensor_15 (HPC outlet pressure) must be correlated. This is wrong. The ideal gas law applies to a fixed-volume, closed system — an HPC is an open-flow device. The correct governing equation is the isentropic compression relation:
+
+```
+T₂/T₁ = (P₂/P₁)^((γ−1)/γ),  γ ≈ 1.4 for air
+```
+
+This guarantees monotonic coupling between T and P at the compressor outlet, which is exactly what the G-test verifies. The implementation (G-test logic) was always correct — only the textual justification was wrong.
+
+**Fix 2 — Statistics: G_THRESHOLD wrong degrees of freedom**
+
+`G_THRESHOLD = 9.49` corresponds to chi-squared at p=0.05, df=4 — correct for a 3×3 contingency table. But `NUM_BINS = 5` creates a 5×5 table with df = (5−1)×(5−1) = 16. Correct threshold:
+
+```python
+# Before:
+G_THRESHOLD = 9.49   # df=4 (wrong for 5×5 table)
+
+# After:
+G_THRESHOLD = 26.30  # df=16 = (5-1)*(5-1) for 5×5 table
+```
+
+Effect: the old threshold was too strict (veto only fired on extreme decorrelation). The corrected threshold makes the veto more sensitive, catching moderate coupling breaks that are statistically significant.
+
+All 30 tests pass unchanged (test data uses perfectly correlated / perfectly independent distributions, both far from any threshold).
+
+**Day 30 complete.**
