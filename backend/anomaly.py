@@ -26,6 +26,21 @@ SENSOR_STATS: dict[str, tuple[float, float]] = {
     "sensor_21": (23.394,   0.178),
 }
 
+# Per-sensor noise floors: derived from 2 × cross-engine std at cycle 1 in train_FD001.
+# Sensors with very tight training std generate inflated z-scores for physically
+# insignificant deviations. The floor prevents measurement precision artifacts from
+# triggering false anomaly classifications.
+#   sensor_2:  2 × 0.358 ≈ 0.72  → 0.75
+#   sensor_8:  2 × 0.055 ≈ 0.11  → 0.15
+#   sensor_13: 2 × 0.054 ≈ 0.11  → 0.15
+#   sensor_15: 2 × 0.027 ≈ 0.05  → 0.07
+SENSOR_NOISE_FLOOR: dict[str, float] = {
+    "sensor_2":  0.75,
+    "sensor_8":  0.15,
+    "sensor_13": 0.15,
+    "sensor_15": 0.07,
+}
+
 
 def compute_anomaly_score(reading: dict) -> float:
     """
@@ -42,13 +57,16 @@ def compute_anomaly_score(reading: dict) -> float:
         value = reading.get(sensor)
         if value is None or std == 0:
             continue
-        z_scores.append(abs(value - mean) / std)
+        effective_std = max(std, SENSOR_NOISE_FLOOR.get(sensor, 0.0))
+        z_scores.append(abs(value - mean) / effective_std)
 
     if not z_scores:
         return 0.0
 
-    mean_z = sum(z_scores) / len(z_scores)
-    return min(mean_z / 5.0, 1.0)
+    # Mean of the top-3 worst sensors: sensitive to clustered degradation
+    # (real wear affects multiple related sensors) but robust to single-sensor noise.
+    top3_mean = sum(sorted(z_scores, reverse=True)[:3]) / 3
+    return min(top3_mean / 5.0, 1.0)
 
 
 def make_decision(score: float) -> tuple[str, float]:
