@@ -21,8 +21,6 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-DATA_FILE = Path(__file__).parent.parent / "data" / "raw" / "train_FD001.txt"
-
 COLUMNS = [
     "engine_id", "cycle",
     "op_setting_1", "op_setting_2", "op_setting_3",
@@ -85,8 +83,8 @@ def inject_fault(payload: dict, cycle: int) -> dict:
     return payload
 
 
-def load_data(engines: list[int] | None, limit: int) -> pd.DataFrame:
-    df = pd.read_csv(DATA_FILE, sep=r"\s+", header=None, names=COLUMNS)
+def load_data(data_file: Path, engines: list[int] | None, limit: int) -> pd.DataFrame:
+    df = pd.read_csv(data_file, sep=r"\s+", header=None, names=COLUMNS)
     if engines:
         df = df[df["engine_id"].isin(engines)]
     if limit > 0:
@@ -105,6 +103,11 @@ def send_row(url: str, row: dict) -> tuple[int, dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Simulate a live sensor stream")
+    parser.add_argument(
+        "--file",
+        default="train_FD001.txt",
+        help="CMAPSS data file to stream (relative to data/raw/). Default: train_FD001.txt",
+    )
     parser.add_argument(
         "--url",
         default="http://localhost:8000/ingest",
@@ -135,13 +138,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    DATA_FILE = Path(__file__).parent.parent / "data" / "raw" / args.file
     if not DATA_FILE.exists():
         print(f"ERROR: Data file not found at {DATA_FILE}")
         print("Run: python scripts/download_cmapss.py")
         return
 
     engines = [int(e) for e in args.engines.split(",")] if args.engines else None
-    df = load_data(engines, args.rows)
+    df = load_data(DATA_FILE, engines, args.rows)
     total = len(df)
     fault_tag = " [FAULT INJECTION ON]" if args.fault_injection else ""
     print(f"Sending {total} rows to {args.url}{fault_tag}\n")
