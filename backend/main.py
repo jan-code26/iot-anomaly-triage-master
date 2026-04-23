@@ -1,6 +1,11 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+_DASHBOARD = Path(__file__).parent.parent / "dashboard"
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -38,6 +43,23 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Dashboard pages
+# ---------------------------------------------------------------------------
+
+@app.get("/")
+def dashboard():
+    return FileResponse(_DASHBOARD / "index.html")
+
+@app.get("/showcase")
+def showcase():
+    return FileResponse(_DASHBOARD / "showcase.html")
+
+@app.get("/tutorial")
+def tutorial():
+    return FileResponse(_DASHBOARD / "tutorial.html")
 
 
 # ---------------------------------------------------------------------------

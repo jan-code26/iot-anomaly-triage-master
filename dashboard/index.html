@@ -272,10 +272,10 @@
   <div class="url-bar">
     <label>Backend</label>
     <select id="env-select" onchange="onEnvChange()">
-      <option value="https://iot-anomaly-triage-master.onrender.com">Production</option>
-      <option value="http://localhost:8000" selected>Local Dev</option>
+      <option value="https://iot-anomaly-triage-master.onrender.com" selected>Production</option>
+      <option value="http://localhost:8000">Local Dev</option>
     </select>
-    <input id="backend-url" type="text" value="http://localhost:8000" style="display:none" />
+    <input id="backend-url" type="text" value="https://iot-anomaly-triage-master.onrender.com" style="display:none" />
   </div>
   <div class="refresh-row">
     <label><input id="auto-refresh-toggle" type="checkbox" /> Auto</label>
