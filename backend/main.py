@@ -50,6 +50,10 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 @app.get("/")
+def home():
+    return FileResponse(_DASHBOARD / "showcase.html")
+
+@app.get("/dashboard")
 def dashboard():
     return FileResponse(_DASHBOARD / "index.html")
 
