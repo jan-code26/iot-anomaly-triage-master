@@ -54,7 +54,7 @@
       max-width: 420px;
     }
     .url-bar label { color: var(--muted); white-space: nowrap; font-size: 12px; }
-    .url-bar input {
+    .url-bar input, .url-bar select {
       flex: 1;
       background: var(--bg);
       border: 1px solid var(--border);
@@ -271,7 +271,11 @@
   <h1>🛩️ <span>IoT</span> Anomaly Triage</h1>
   <div class="url-bar">
     <label>Backend</label>
-    <input id="backend-url" type="text" value="http://localhost:8000" />
+    <select id="env-select" onchange="onEnvChange()">
+      <option value="https://iot-anomaly-triage-master.onrender.com">Production</option>
+      <option value="http://localhost:8000" selected>Local Dev</option>
+    </select>
+    <input id="backend-url" type="text" value="http://localhost:8000" style="display:none" />
   </div>
   <div class="refresh-row">
     <label><input id="auto-refresh-toggle" type="checkbox" /> Auto</label>
@@ -338,7 +342,11 @@ let feedbackSubmitted = {};
 const $ = id => document.getElementById(id);
 
 function backend() {
-  return $('backend-url').value.replace(/\/$/, '');
+  return $('env-select').value.replace(/\/$/, '');
+}
+
+function onEnvChange() {
+  loadAlerts();
 }
 
 // ── API helpers ─────────────────────────────────────────
