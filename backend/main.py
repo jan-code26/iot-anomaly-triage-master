@@ -396,11 +396,13 @@ def submit_feedback(body: FeedbackRequest):
 
 
 @app.get("/alerts/recent", response_model=list[AlertEventOut])
-def get_recent_alerts(limit: int = 50):
-    """Return the most recent alert events with engine_id and cycle, newest first."""
+def get_recent_alerts(limit: int = 50, engine_id: int | None = None):
+    """Return the most recent alert events with engine_id and cycle, newest first.
+    Optionally filter by engine_id to get alerts for a specific engine.
+    """
     try:
         with engine.connect() as conn:
-            rows = conn.execute(
+            q = (
                 select(
                     alert_events.c.id,
                     alert_events.c.telemetry_window_id,
@@ -415,7 +417,10 @@ def get_recent_alerts(limit: int = 50):
                 .join(telemetry_windows, alert_events.c.telemetry_window_id == telemetry_windows.c.id)
                 .order_by(alert_events.c.triggered_at.desc())
                 .limit(limit)
-            ).mappings().all()
+            )
+            if engine_id is not None:
+                q = q.where(telemetry_windows.c.engine_id == engine_id)
+            rows = conn.execute(q).mappings().all()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

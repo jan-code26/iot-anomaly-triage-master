@@ -131,6 +131,7 @@ class EngineSummaryOut(BaseModel):
 
 
 class DemoEngineOut(BaseModel):
+    label: str
     engine_id: int
     rul_at_end: int
     total_test_cycles: int

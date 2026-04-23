@@ -625,11 +625,11 @@ async function loadEngineDetail(engineId, score, decision) {
   const eng = engines.find(e => e.engine_id === engineId);
   if (!eng) return;
 
-  // Fetch latest alert for this engine
+  // Fetch latest alert for this specific engine
   let alert = null;
   try {
-    const alerts = await get(`/alerts/recent?limit=200`);
-    alert = alerts.find(a => a.engine_id === engineId);
+    const alerts = await get(`/alerts/recent?limit=1&engine_id=${engineId}`);
+    alert = alerts[0] || null;
   } catch {}
 
   // Fetch trace and explanation
@@ -951,15 +951,18 @@ async function startDemo() {
   $('demo-banner').classList.add('visible');
 
   // Build per-engine reading queues
-  // Interleave all 3 engines round-robin for a real fleet feel
   const queues = demoData.map(eng => ({
-    label: eng.label,
+    label: eng.label || `Engine ${eng.engine_id}`,
     engine_id: eng.engine_id,
     rul_at_end: eng.rul_at_end,
     total: eng.total_test_cycles,
     readings: eng.readings,
     idx: 0,
   }));
+
+  // Auto-select the first demo engine so user immediately sees live updates
+  selectedEngineId = queues[0].engine_id;
+  renderQueue();
 
   const totalReadings = queues.reduce((s, q) => s + q.readings.length, 0);
   let sent = 0;
@@ -991,6 +994,17 @@ async function startDemo() {
         if (!engineAlerts[q.engine_id]) engineAlerts[q.engine_id] = {};
         engineAlerts[q.engine_id].z_score = result.z_score;
 
+        // Push RUL into detail panel immediately if visible
+        if (selectedEngineId === q.engine_id) {
+          const rulEl = document.querySelector('.rul-value');
+          const rulLabelEl = document.querySelector('.rul-label');
+          if (rulEl) {
+            rulEl.textContent = rul + ' cycles';
+            rulEl.style.color = rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
+          }
+          if (rulLabelEl) rulLabelEl.textContent = 'until predicted failure';
+        }
+
         // Update engine in local state (or add if new)
         const existing = engines.find(e => e.engine_id === q.engine_id);
         const eng = {
@@ -1009,9 +1023,9 @@ async function startDemo() {
         renderQueue();
         updateFleetBar();
 
-        // Refresh selected engine detail live
+        // Refresh detail panel if this engine is selected
         if (selectedEngineId === q.engine_id) {
-          loadEngineDetail(q.engine_id, result.combined_score, result.decision);
+          await loadEngineDetail(q.engine_id, result.combined_score, result.decision);
         }
       } catch {}
 
