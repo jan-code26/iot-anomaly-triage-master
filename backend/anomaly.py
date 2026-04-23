@@ -69,16 +69,23 @@ def compute_anomaly_score(reading: dict) -> float:
     return min(top3_mean / 5.0, 1.0)
 
 
-def make_decision(score: float) -> tuple[str, float]:
+def make_decision(score: float, threshold: float = 0.3) -> tuple[str, float]:
     """
     Convert a numeric anomaly score to a human-readable decision + confidence.
+
+    Args:
+        score:     Anomaly score in [0, 1].
+        threshold: Alert threshold (default 0.3).  Per-regime calibrated
+                   thresholds are passed by nodes.py for multi-condition
+                   deployments (FD002).  Confidence bands scale with threshold.
 
     Returns (decision, confidence) where:
         decision   — "NORMAL" | "UNCERTAIN" | "ALERT"
         confidence — how sure we are (0.0–1.0)
     """
-    if score < 0.3:
+    high_conf = threshold + 0.3   # e.g. default: 0.3 + 0.3 = 0.6
+    if score < threshold:
         return ("NORMAL", round(1.0 - score, 4))
-    if score < 0.6:
+    if score < high_conf:
         return ("UNCERTAIN", 0.5)
     return ("ALERT", round(score, 4))

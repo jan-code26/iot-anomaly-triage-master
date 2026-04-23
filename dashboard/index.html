@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IoT Anomaly Triage</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --accent: #4f8ef7;
+      --red: #f56565;
+      --yellow: #ecc94b;
+      --green: #48bb78;
+      --red-bg: rgba(245,101,101,0.12);
+      --yellow-bg: rgba(236,201,75,0.10);
+      --green-bg: rgba(72,187,120,0.10);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+    header h1 span { color: var(--accent); }
+
+    .url-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      max-width: 420px;
+    }
+    .url-bar label { color: var(--muted); white-space: nowrap; font-size: 12px; }
+    .url-bar input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    #status-dot.ok { background: var(--green); }
+    #status-dot.err { background: var(--red); }
+    #status-text { font-size: 12px; color: var(--muted); }
+
+    button.btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button.btn:hover { opacity: 0.85; }
+    button.btn.secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    button.btn.danger { background: #c53030; }
+    button.btn.warn   { background: #b7791f; }
+    button.btn.ok     { background: #276749; }
+
+    /* ── Auto-refresh ── */
+    .refresh-row {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+    }
+    .refresh-row input[type=range] { width: 80px; accent-color: var(--accent); }
+    .refresh-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .refresh-row input[type=checkbox] { accent-color: var(--accent); }
+
+    /* ── Main layout ── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      grid-template-rows: 1fr auto;
+      flex: 1;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    /* ── Panel ── */
+    .panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .panel-body { flex: 1; overflow-y: auto; }
+
+    /* ── Alert table ── */
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      position: sticky; top: 0;
+      background: var(--surface);
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.04); }
+    tbody tr.selected { background: rgba(79,142,247,0.12); }
+    tbody tr.alert-red   { background: var(--red-bg); }
+    tbody tr.alert-red.selected   { background: rgba(245,101,101,0.22); }
+    tbody tr.alert-yellow { background: var(--yellow-bg); }
+    tbody tr.alert-yellow.selected { background: rgba(236,201,75,0.20); }
+    tbody td { padding: 8px 12px; font-size: 13px; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600;
+    }
+    .badge.red    { background: var(--red-bg);    color: var(--red); }
+    .badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
+    .badge.green  { background: var(--green-bg);  color: var(--green); }
+    .badge.muted  { background: rgba(136,146,164,0.12); color: var(--muted); }
+
+    /* ── Metrics strip ── */
+    .metrics {
+      display: flex; gap: 0;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .metric {
+      flex: 1; padding: 10px 12px; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .metric:last-child { border-right: none; }
+    .metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .metric-value { font-size: 20px; font-weight: 700; }
+    .metric-value.red    { color: var(--red); }
+    .metric-value.yellow { color: var(--yellow); }
+    .metric-value.green  { color: var(--green); }
+    .metric-value.accent { color: var(--accent); }
+
+    /* ── Detail panel ── */
+    .detail-panel {
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .detail-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .detail-empty {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; color: var(--muted); font-size: 13px; text-align: center;
+    }
+
+    .score-bar-wrap { margin: 12px 0; }
+    .score-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .score-bar-track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+    .score-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+
+    .explanation-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .explanation-box.empty { color: var(--muted); font-style: italic; }
+
+    .kv-grid { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; }
+    .kv-key { color: var(--muted); font-size: 12px; }
+    .kv-val { font-size: 12px; font-weight: 500; word-break: break-all; }
+
+    .feedback-row { display: flex; gap: 8px; margin-top: 8px; }
+    .feedback-row button { flex: 1; padding: 8px; font-size: 12px; }
+
+    .prior-feedback { margin-top: 8px; }
+    .prior-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 8px; border-radius: 4px; background: var(--surface);
+      margin-bottom: 4px; font-size: 12px;
+    }
+    .prior-item .time { color: var(--muted); font-size: 11px; }
+
+    .feedback-success {
+      padding: 10px 12px; border-radius: 8px; background: var(--green-bg);
+      color: var(--green); font-size: 13px; font-weight: 600; text-align: center;
+    }
+
+    /* ── PSI strip ── */
+    .psi-strip {
+      border-top: 1px solid var(--border);
+      grid-column: 1 / -1;
+      overflow: hidden;
+    }
+    .psi-header {
+      padding: 8px 16px; display: flex; align-items: center; gap: 10px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      border-bottom: 1px solid transparent;
+      user-select: none;
+    }
+    .psi-header:hover { background: rgba(255,255,255,0.03); }
+    .psi-header.open { border-bottom-color: var(--border); }
+    .psi-body { display: none; padding: 10px 16px; overflow-x: auto; }
+    .psi-body.open { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .psi-chip {
+      padding: 5px 10px; border-radius: 6px; font-size: 11px;
+      border: 1px solid var(--border); background: var(--surface);
+      display: flex; flex-direction: column; gap: 2px; min-width: 90px;
+    }
+    .psi-chip .psi-name { font-weight: 600; color: var(--text); }
+    .psi-chip .psi-val  { color: var(--muted); }
+    .psi-chip.stable  { border-color: rgba(72,187,120,0.3); }
+    .psi-chip.moderate { border-color: rgba(236,201,75,0.3); }
+    .psi-chip.action_required { border-color: rgba(245,101,101,0.3); }
+
+    .spinner { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; }
+    .err-msg { color: var(--red); font-size: 12px; padding: 12px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <h1>🛩️ <span>IoT</span> Anomaly Triage</h1>
+  <div class="url-bar">
+    <label>Backend</label>
+    <input id="backend-url" type="text" value="http://localhost:8000" />
+  </div>
+  <div class="refresh-row">
+    <label><input id="auto-refresh-toggle" type="checkbox" /> Auto</label>
+    <input id="refresh-interval" type="range" min="5" max="60" value="10" step="5" />
+    <span id="interval-label">10s</span>
+  </div>
+  <div class="header-right">
+    <div id="status-dot"></div>
+    <span id="status-text">—</span>
+    <button class="btn secondary" onclick="loadAlerts()">↺ Refresh</button>
+  </div>
+</header>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Left: Alert Feed -->
+  <div class="panel" id="feed-panel">
+    <div class="panel-header">
+      📋 Live Alert Feed
+      <span id="alert-count" style="color:var(--muted);font-weight:400;font-size:12px;margin-left:4px;"></span>
+    </div>
+    <!-- Metrics strip -->
+    <div class="metrics">
+      <div class="metric"><div class="metric-label">Total</div><div class="metric-value accent" id="m-total">—</div></div>
+      <div class="metric"><div class="metric-label">🔴 Alert</div><div class="metric-value red" id="m-alert">—</div></div>
+      <div class="metric"><div class="metric-label">🟡 Uncertain</div><div class="metric-value yellow" id="m-uncertain">—</div></div>
+      <div class="metric"><div class="metric-label">🟢 FP</div><div class="metric-value green" id="m-fp">—</div></div>
+    </div>
+    <div class="panel-body">
+      <div id="feed-content"><div class="spinner">Loading alerts…</div></div>
+    </div>
+  </div>
+
+  <!-- Right: Alert Detail -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="panel-header">🔍 Alert Detail</div>
+    <div class="detail-body">
+      <div class="detail-empty" id="detail-empty">
+        ← Select an alert to inspect it
+      </div>
+      <div id="detail-content" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Bottom: PSI strip -->
+  <div class="psi-strip">
+    <div class="psi-header" id="psi-header" onclick="togglePsi()">
+      📊 Sensor Health (PSI) <span id="psi-toggle-icon">▶</span>
+      <span id="psi-summary" style="color:var(--muted);font-weight:400;margin-left:8px;font-size:11px;"></span>
+    </div>
+    <div class="psi-body" id="psi-body"></div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+let selectedAlertId = null;
+let alerts = [];
+let autoRefreshTimer = null;
+let feedbackSubmitted = {};
+
+const $ = id => document.getElementById(id);
+
+function backend() {
+  return $('backend-url').value.replace(/\/$/, '');
+}
+
+// ── API helpers ─────────────────────────────────────────
+async function get(path) {
+  const r = await fetch(backend() + path);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+
+async function post(path, body) {
+  const r = await fetch(backend() + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+
+// ── Decision helpers ────────────────────────────────────
+function decisionClass(decision, score) {
+  if (score >= 0.6 || decision === 'ALERT' || decision === 'TRUE_POSITIVE') return 'red';
+  if (score >= 0.3 || decision === 'UNCERTAIN') return 'yellow';
+  if (decision === 'FALSE_POSITIVE') return 'green';
+  return 'muted';
+}
+
+function decisionLabel(decision) {
+  const icons = { ALERT: '🔴', TRUE_POSITIVE: '🔴', FALSE_POSITIVE: '🟢', UNCERTAIN: '🟡', NORMAL: '⚪' };
+  return `${icons[decision] || '⚪'} ${decision}`;
+}
+
+function scoreColor(score) {
+  if (score >= 0.6) return '#f56565';
+  if (score >= 0.3) return '#ecc94b';
+  return '#48bb78';
+}
+
+function fmt(dt) {
+  if (!dt) return '—';
+  const d = new Date(dt);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function shortId(id) {
+  return id ? id.slice(0, 8) + '…' : '—';
+}
+
+// ── Health check ────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const h = await get('/health');
+    $('status-dot').className = 'ok';
+    $('status-text').textContent = h.message || 'connected';
+    return true;
+  } catch {
+    $('status-dot').className = 'err';
+    $('status-text').textContent = 'backend unreachable';
+    return false;
+  }
+}
+
+// ── Load alerts ─────────────────────────────────────────
+async function loadAlerts() {
+  const ok = await checkHealth();
+  if (!ok) {
+    $('feed-content').innerHTML = '<div class="err-msg">⚠ Cannot reach backend — is uvicorn running?</div>';
+    return;
+  }
+  try {
+    alerts = await get('/alerts/recent?limit=50');
+    renderFeed();
+    loadPsi();
+  } catch (e) {
+    $('feed-content').innerHTML = `<div class="err-msg">Error loading alerts: ${e.message}</div>`;
+  }
+}
+
+// ── Render feed ─────────────────────────────────────────
+function renderFeed() {
+  const n = alerts.length;
+  const nAlert = alerts.filter(a => ['ALERT','TRUE_POSITIVE'].includes(a.decision)).length;
+  const nUncertain = alerts.filter(a => a.decision === 'UNCERTAIN').length;
+  const nFp = alerts.filter(a => a.decision === 'FALSE_POSITIVE').length;
+
+  $('m-total').textContent = n;
+  $('m-alert').textContent = nAlert;
+  $('m-uncertain').textContent = nUncertain;
+  $('m-fp').textContent = nFp;
+  $('alert-count').textContent = `(${n})`;
+
+  if (n === 0) {
+    $('feed-content').innerHTML = '<div class="spinner">No alerts yet. POST to /ingest to generate some.</div>';
+    return;
+  }
+
+  const rows = alerts.map(a => {
+    const cls = decisionClass(a.decision, a.anomaly_score);
+    const sel = a.id === selectedAlertId ? ' selected' : '';
+    return `<tr class="alert-${cls}${sel}" onclick="selectAlert('${a.id}')">
+      <td>${fmt(a.triggered_at)}</td>
+      <td><code style="font-size:11px">${shortId(a.id)}</code></td>
+      <td><b>${a.anomaly_score.toFixed(3)}</b></td>
+      <td><span class="badge ${cls}">${decisionLabel(a.decision)}</span></td>
+      <td>${(a.confidence * 100).toFixed(0)}%</td>
+      <td style="color:var(--muted)">${a.cache_hit ? '✓' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  $('feed-content').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Time</th><th>ID</th><th>Score</th><th>Decision</th><th>Conf.</th><th>Cache</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Select alert ─────────────────────────────────────────
+async function selectAlert(id) {
+  selectedAlertId = id;
+  renderFeed(); // re-render to highlight row
+
+  $('detail-empty').style.display = 'none';
+  $('detail-content').style.display = 'block';
+  $('detail-content').innerHTML = '<div class="spinner">Loading…</div>';
+
+  const alert = alerts.find(a => a.id === id);
+  const score = alert ? alert.anomaly_score : 0;
+  const cls = decisionClass(alert?.decision, score);
+
+  // Fetch explanation
+  let exp = null;
+  try { exp = await get(`/alerts/${id}/explanation`); } catch {}
+
+  // Fetch prior feedback
+  let prior = [];
+  try { prior = await get(`/alerts/${id}/feedback`); } catch {}
+
+  const barColor = scoreColor(score);
+  const barWidth = Math.min(score * 100, 100).toFixed(1);
+
+  const alreadyFeedback = feedbackSubmitted[id];
+
+  $('detail-content').innerHTML = `
+    <div class="detail-section">
+      <h3>Alert</h3>
+      <div class="kv-grid">
+        <div class="kv-key">ID</div><div class="kv-val" style="font-size:11px">${id}</div>
+        <div class="kv-key">Time</div><div class="kv-val">${fmt(alert?.triggered_at)}</div>
+        <div class="kv-key">Decision</div>
+        <div class="kv-val"><span class="badge ${cls}">${decisionLabel(alert?.decision || '—')}</span></div>
+        <div class="kv-key">Confidence</div><div class="kv-val">${((alert?.confidence || 0) * 100).toFixed(0)}%</div>
+        <div class="kv-key">Cache hit</div><div class="kv-val">${alert?.cache_hit ? 'Yes' : 'No'}</div>
+        <div class="kv-key">Regime</div><div class="kv-val">${exp?.regime || '—'}</div>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-label"><span>Anomaly score</span><span style="color:${barColor};font-weight:700">${score.toFixed(3)}</span></div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill" style="width:${barWidth}%;background:${barColor}"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>LLM Explanation</h3>
+      <div class="explanation-box ${exp?.llm_explanation ? '' : 'empty'}">
+        ${exp?.llm_explanation || 'No explanation available (agent runs when score ≥ 0.3).'}
+      </div>
+      ${exp?.llm_latency_ms ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">LLM latency: ${exp.llm_latency_ms}ms</div>` : ''}
+    </div>
+
+    <div class="detail-section">
+      <h3>Operator Feedback</h3>
+      ${alreadyFeedback
+        ? `<div class="feedback-success">✓ Submitted: ${alreadyFeedback}</div>`
+        : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+             <label><input type="checkbox" id="override-cb" style="accent-color:var(--accent)">
+             Override (set confidence = 1.0, treat as ground truth)</label>
+           </div>
+           <div class="feedback-row">
+             <button class="btn ok"     onclick="submitFeedback('${id}','TRUE_POSITIVE')">✅ True Positive</button>
+             <button class="btn danger" onclick="submitFeedback('${id}','FALSE_POSITIVE')">❌ False Positive</button>
+             <button class="btn warn"   onclick="submitFeedback('${id}','UNCERTAIN')">❓ Uncertain</button>
+           </div>`
+      }
+    </div>
+
+    ${prior.length > 0 ? `
+    <div class="detail-section">
+      <h3>Prior Feedback (${prior.length})</h3>
+      <div class="prior-feedback">
+        ${prior.map(p => `
+          <div class="prior-item">
+            <span class="badge ${decisionClass(p.label, 0)}">${decisionLabel(p.label)}</span>
+            <span class="time">${fmt(p.submitted_at)}${p.override ? ' · override' : ''}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+
+// ── Submit feedback ─────────────────────────────────────
+async function submitFeedback(alertId, label) {
+  const override = document.getElementById('override-cb')?.checked || false;
+  try {
+    await post('/feedback', { alert_event_id: alertId, label, override });
+    feedbackSubmitted[alertId] = label;
+    selectAlert(alertId); // re-render detail
+    loadAlerts();
+  } catch (e) {
+    alert(`Feedback failed: ${e.message}`);
+  }
+}
+
+// ── PSI ─────────────────────────────────────────────────
+let psiOpen = false;
+
+function togglePsi() {
+  psiOpen = !psiOpen;
+  $('psi-toggle-icon').textContent = psiOpen ? '▼' : '▶';
+  $('psi-header').classList.toggle('open', psiOpen);
+  $('psi-body').classList.toggle('open', psiOpen);
+  if (psiOpen) loadPsi();
+}
+
+async function loadPsi() {
+  try {
+    const data = await get('/psi/status');
+    const sensors = data.sensors || [];
+    $('psi-summary').textContent = sensors.length
+      ? `${sensors.filter(s=>s.status==='stable').length} stable · `
+      + `${sensors.filter(s=>s.status==='moderate').length} moderate · `
+      + `${sensors.filter(s=>s.status==='action_required').length} action required`
+      : 'no data yet';
+
+    if (!psiOpen) return;
+    $('psi-body').innerHTML = sensors.length
+      ? sensors.sort((a,b)=>a.sensor.localeCompare(b.sensor)).map(s => {
+          const icon = { stable:'✅', moderate:'⚠️', action_required:'🔴' }[s.status] || '❓';
+          return `<div class="psi-chip ${s.status}">
+            <div class="psi-name">${icon} ${s.sensor}</div>
+            <div class="psi-val">PSI: ${(s.psi??0).toFixed(4)}</div>
+            <div class="psi-val">${s.status}</div>
+          </div>`;
+        }).join('')
+      : '<div style="color:var(--muted);font-size:12px">Ingest readings to populate sensor baselines.</div>';
+  } catch {}
+}
+
+// ── Auto-refresh ─────────────────────────────────────────
+function setupAutoRefresh() {
+  const toggle = $('auto-refresh-toggle');
+  const slider = $('refresh-interval');
+  const label  = $('interval-label');
+
+  slider.addEventListener('input', () => {
+    label.textContent = slider.value + 's';
+    if (toggle.checked) startAutoRefresh();
+  });
+
+  toggle.addEventListener('change', () => {
+    if (toggle.checked) startAutoRefresh();
+    else stopAutoRefresh();
+  });
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  const ms = parseInt($('refresh-interval').value, 10) * 1000;
+  autoRefreshTimer = setInterval(loadAlerts, ms);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+}
+
+// ── Init ─────────────────────────────────────────────────
+setupAutoRefresh();
+loadAlerts();
+</script>
+</body>
+</html>

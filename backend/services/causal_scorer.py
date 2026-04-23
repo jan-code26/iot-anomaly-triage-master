@@ -243,8 +243,12 @@ def compute_causal_score(
     if not causal_z_scores:
         return 0.0, {}
 
-    mean_z = sum(causal_z_scores) / len(causal_z_scores)
-    causal_score = min(mean_z / 5.0, 1.0)
+    # Use top-k mean (k = min(3, n_sensors)) to mirror z-score's top-3-of-14
+    # aggregation. Previously used mean of all 5, which suppressed causal
+    # scores relative to z-scores and made the 50/50 blend uneven.
+    k = min(3, len(causal_z_scores))
+    top_k_mean = sum(sorted(causal_z_scores, reverse=True)[:k]) / k
+    causal_score = min(top_k_mean / 5.0, 1.0)
     return round(causal_score, 6), details
 
 

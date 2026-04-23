@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipeline Walkthrough — IoT Anomaly Triage</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #20243a;
+      --border: #2a2d3a;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --accent: #4f8ef7;
+      --red: #f56565;
+      --yellow: #ecc94b;
+      --green: #48bb78;
+      --red-bg: rgba(245,101,101,0.12);
+      --yellow-bg: rgba(236,201,75,0.10);
+      --green-bg: rgba(72,187,120,0.10);
+      --accent-bg: rgba(79,142,247,0.10);
+      --sidebar-w: 220px;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── JARGON TOOLTIPS ── */
+    .jargon {
+      border-bottom: 1px dashed var(--muted);
+      cursor: help;
+      position: relative;
+      white-space: nowrap;
+    }
+    .jargon::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #252838;
+      border: 1px solid #3a3d52;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 1.55;
+      padding: 8px 12px;
+      border-radius: 8px;
+      width: max-content;
+      max-width: 260px;
+      white-space: normal;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s;
+      z-index: 999;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .jargon:hover::after, .jargon:focus::after { opacity: 1; }
+
+    /* ── TOP BAR ── */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 24px;
+      height: 52px;
+      background: rgba(15,17,23,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    #top-bar a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #top-bar a:hover { color: var(--text); }
+    #top-bar .sep { color: var(--border); }
+    #top-bar .title { font-weight: 700; font-size: 14px; color: var(--text); }
+    #top-bar .spacer { flex: 1; }
+    .mode-pill {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .mode-btn {
+      padding: 4px 14px;
+      border-radius: 16px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .mode-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ── PROGRESS ── */
+    #progress-wrap {
+      height: 3px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    #progress-fill {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.4s ease;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    #layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 16px 8px;
+    }
+    .nav-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 16px;
+      cursor: pointer;
+      transition: background 0.12s;
+      border-left: 3px solid transparent;
+    }
+    .nav-step:hover { background: rgba(79,142,247,0.06); }
+    .nav-step.active {
+      background: var(--accent-bg);
+      border-left-color: var(--accent);
+    }
+    .nav-step.done { opacity: 0.7; }
+    .step-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .nav-step.active .step-dot {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .nav-step.done .step-dot {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+      font-size: 13px;
+    }
+    .nav-step-label {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+    .nav-step.active .nav-step-label { color: var(--text); font-weight: 500; }
+
+    /* ── CONTENT AREA ── */
+    #content-wrap {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    #step-content {
+      flex: 1;
+      padding: 36px 48px;
+      max-width: 900px;
+    }
+    .step-num {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .step-title {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    .step-story {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.75;
+      max-width: 680px;
+      margin-bottom: 28px;
+    }
+    .step-story strong { color: var(--text); }
+
+    /* ── CALLOUT ── */
+    .callout {
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 20px 0;
+      font-size: 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .callout.red { background: var(--red-bg); border: 1px solid rgba(245,101,101,0.25); color: var(--red); }
+    .callout.green { background: var(--green-bg); border: 1px solid rgba(72,187,120,0.25); color: var(--green); }
+    .callout.blue { background: var(--accent-bg); border: 1px solid rgba(79,142,247,0.25); color: var(--accent); }
+    .callout.yellow { background: var(--yellow-bg); border: 1px solid rgba(236,201,75,0.25); color: var(--yellow); }
+    .callout-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+    .callout-body { line-height: 1.55; }
+    .callout-body strong { font-weight: 700; }
+
+    /* ── MATH EXPAND ── */
+    .math-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      background: none;
+      border: none;
+      padding: 4px 0;
+      margin-top: 8px;
+      transition: color 0.15s;
+    }
+    .math-toggle:hover { color: var(--accent); }
+    .math-toggle .arrow { transition: transform 0.2s; }
+    .math-toggle.open .arrow { transform: rotate(90deg); }
+    .math-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .math-panel.open { display: block; }
+    .math-panel code {
+      background: var(--surface2);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .math-panel table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .math-panel th { text-align: left; color: var(--text); font-weight: 600; border-bottom: 1px solid var(--border); padding: 6px 8px; }
+    .math-panel td { padding: 5px 8px; border-bottom: 1px solid rgba(42,45,58,0.5); }
+
+    /* ── CHART CONTAINER ── */
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .chart-box h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    /* Chart.js requires a fixed-height parent when maintainAspectRatio:false */
+    .chart-wrap { position: relative; height: 220px; }
+    .chart-wrap.tall { height: 260px; }
+    .chart-wrap.sm { height: 160px; }
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+    /* ── SENSOR GRID ── */
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 20px 0;
+    }
+    .sensor-cell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .causal-cell {
+      border-color: rgba(79,142,247,0.35);
+      background: rgba(79,142,247,0.04);
+    }
+    .sensor-name {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .causal-tag {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      background: var(--accent-bg);
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+    .sensor-val {
+      font-size: 17px;
+      font-weight: 700;
+      font-family: "SF Mono", Consolas, monospace;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .sensor-desc {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+    /* legacy badge classes kept for any future use */
+    .badge-red { background: var(--red-bg); color: var(--red); }
+    .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+    .badge-green { background: var(--green-bg); color: var(--green); }
+
+    /* ── SCORE BAR ── */
+    .score-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 20px 0;
+      text-align: center;
+    }
+    .score-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .score-number { font-size: 52px; font-weight: 800; font-family: "SF Mono", Consolas, monospace; transition: color 0.6s; }
+    .score-bar-track {
+      height: 10px;
+      background: var(--surface2);
+      border-radius: 5px;
+      margin: 12px 0;
+      overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 1s ease, background 0.6s;
+    }
+    .score-decision { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+
+    /* ── VERDICT SPLIT ── */
+    .verdict-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .verdict-card {
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .verdict-card.bad { background: var(--red-bg); border: 1px solid rgba(245,101,101,0.3); }
+    .verdict-card.good { background: var(--green-bg); border: 1px solid rgba(72,187,120,0.3); }
+    .verdict-icon { font-size: 40px; margin-bottom: 10px; }
+    .verdict-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .verdict-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+    .verdict-card.bad .verdict-title { color: var(--red); }
+    .verdict-card.good .verdict-title { color: var(--green); }
+    .verdict-detail { font-size: 13px; color: var(--muted); }
+
+    /* ── IMPACT COUNTER ── */
+    .impact-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 20px 0;
+      text-align: center;
+    }
+    .impact-num {
+      font-size: 60px;
+      font-weight: 800;
+      color: var(--green);
+      font-family: "SF Mono", Consolas, monospace;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .impact-desc { font-size: 15px; color: var(--muted); max-width: 260px; line-height: 1.5; text-align: left; }
+    .impact-desc strong { color: var(--text); display: block; font-size: 18px; margin-bottom: 4px; }
+
+    /* ── TYPEWRITER ── */
+    .llm-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 20px 0;
+    }
+    .llm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .llm-badge {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 12px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .llm-model { font-size: 12px; color: var(--muted); }
+    .llm-text { font-size: 16px; line-height: 1.7; color: var(--text); min-height: 60px; }
+    .cursor { display: inline-block; width: 2px; height: 18px; background: var(--accent); animation: blink 0.8s infinite; vertical-align: middle; margin-left: 2px; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── CLUSTER TABLE ── */
+    .cluster-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .cluster-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .cluster-table td { padding: 8px 12px; border-bottom: 1px solid rgba(42,45,58,0.5); }
+    .cluster-table tr:hover td { background: var(--surface2); }
+    .cluster-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+    .cluster-table tr.highlight-row td { background: var(--accent-bg); font-weight: 600; }
+
+    /* ── BOTTOM NAV ── */
+    #bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover { background: var(--surface2); border-color: var(--muted); }
+    .nav-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .nav-btn.primary:hover { opacity: 0.88; }
+    .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .step-counter { font-size: 13px; color: var(--muted); }
+
+    /* ── LIVE MODE PANEL ── */
+    #live-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid rgba(236,201,75,0.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 0 0 20px;
+      font-size: 13px;
+    }
+    #live-panel.visible { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #live-panel label { color: var(--muted); font-weight: 500; }
+    #live-panel input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: var(--text);
+      font-size: 13px;
+      width: 180px;
+    }
+    #live-panel .connect-btn {
+      padding: 5px 14px;
+      background: var(--yellow);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #live-status { font-size: 12px; font-weight: 600; }
+    #live-status.ok { color: var(--green); }
+    #live-status.err { color: var(--red); }
+
+    /* ── MISC ── */
+    .ops-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+    .op-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      text-align: center;
+    }
+    .op-val { font-size: 28px; font-weight: 800; color: var(--accent); font-family: "SF Mono", Consolas, monospace; }
+    .op-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .op-context { font-size: 11px; color: var(--accent); margin-top: 2px; font-weight: 600; }
+
+    .residual-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 16px 0; }
+    .residual-cell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .residual-sensor { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .residual-z { font-size: 20px; font-weight: 800; font-family: "SF Mono", Consolas, monospace; color: var(--green); }
+    .residual-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .physics-result {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 16px 0;
+    }
+    .physics-icon { font-size: 40px; }
+    .physics-detail h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .physics-stat { font-size: 13px; color: var(--muted); }
+    .physics-stat span { color: var(--text); font-family: "SF Mono", Consolas, monospace; }
+
+    @media (max-width: 768px) {
+      #sidebar { display: none; }
+      #step-content { padding: 20px 20px; }
+      .chart-row, .verdict-split { grid-template-columns: 1fr; }
+      .sensor-grid { grid-template-columns: repeat(2, 1fr); }
+      .residual-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <a href="showcase.html">&#8592; Showcase</a>
+  <span class="sep">/</span>
+  <span class="title">Pipeline Walkthrough</span>
+  <span class="spacer"></span>
+  <div class="mode-pill">
+    <button class="mode-btn active" id="btn-demo" onclick="setMode('demo')">Demo</button>
+    <button class="mode-btn" id="btn-live" onclick="setMode('live')">Live</button>
+  </div>
+</div>
+
+<!-- PROGRESS BAR -->
+<div id="progress-wrap">
+  <div id="progress-fill" style="width:14.3%"></div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div id="layout">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sidebar-label">Steps</div>
+    <div class="nav-step active" id="nav-1" onclick="goToStep(1)">
+      <div class="step-dot" id="dot-1">1</div>
+      <div class="nav-step-label">Meet the Engine</div>
+    </div>
+    <div class="nav-step" id="nav-2" onclick="goToStep(2)">
+      <div class="step-dot" id="dot-2">2</div>
+      <div class="nav-step-label">The Old Way</div>
+    </div>
+    <div class="nav-step" id="nav-3" onclick="goToStep(3)">
+      <div class="step-dot" id="dot-3">3</div>
+      <div class="nav-step-label">Why It Fails</div>
+    </div>
+    <div class="nav-step" id="nav-4" onclick="goToStep(4)">
+      <div class="step-dot" id="dot-4">4</div>
+      <div class="nav-step-label">Regime Scoring</div>
+    </div>
+    <div class="nav-step" id="nav-5" onclick="goToStep(5)">
+      <div class="step-dot" id="dot-5">5</div>
+      <div class="nav-step-label">Physics Veto</div>
+    </div>
+    <div class="nav-step" id="nav-6" onclick="goToStep(6)">
+      <div class="step-dot" id="dot-6">6</div>
+      <div class="nav-step-label">LLM Explanation</div>
+    </div>
+    <div class="nav-step" id="nav-7" onclick="goToStep(7)">
+      <div class="step-dot" id="dot-7">7</div>
+      <div class="nav-step-label">The Verdict</div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content-wrap">
+    <div id="step-content"></div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div id="bottom-nav">
+  <button class="nav-btn" id="btn-back" onclick="prevStep()" disabled>&#8592; Back</button>
+  <span class="step-counter" id="step-counter">Step 1 of 7</span>
+  <button class="nav-btn primary" id="btn-next" onclick="nextStep()">Next &#8594;</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ============================================================
+// DEMO DATA — Engine 90, Cycle 91, FD002 test set
+// ============================================================
+const ENGINE = {
+  id: 90, cycle: 91,
+  op1: 35.0077, op2: 0.8411, op3: 100.0,
+  // 21 sensors
+  s: [449.44, 556.37, 1367.10, 1130.99, 5.48, 8.00, 194.70,
+      2223.03, 8356.99, 1.02, 42.02, 183.24, 2388.12,
+      8069.68, 9.3274, 0.02, 333.0, 2223.0, 100.00, 14.92, 8.7823]
+};
+
+// FD001 global stats used by the global z-score baseline
+const FD001_STATS = {
+  sensor_2:  [641.682,  0.501,  0.75],   // [mean, std, noise_floor]
+  sensor_3:  [1590.524, 6.132,  0   ],
+  sensor_4:  [1408.934, 14.806, 0   ],
+  sensor_7:  [554.027,  0.603,  0   ],
+  sensor_8:  [2388.099, 0.058,  0.15],
+  sensor_9:  [9065.252, 20.834, 0   ],
+  sensor_11: [47.541,   0.396,  0   ],
+  sensor_12: [521.413,  2.578,  0   ],
+  sensor_13: [2388.096, 0.051,  0.15],
+  sensor_14: [8143.750, 14.800, 0   ],
+  sensor_15: [8.442,    0.035,  0.07],
+  sensor_17: [392.088,  2.483,  0   ],
+  sensor_20: [39.234,   0.271,  0   ],
+  sensor_21: [23.394,   0.178,  0   ],
+};
+
+// Pre-computed global z-scores for Engine 90 Cycle 91
+const GLOBAL_ZSCORES = [
+  { sensor: 'sensor_8',  z: 1100.46, val: 2223.03, mean: 2388.099 },
+  { sensor: 'sensor_7',  z: 595.90,  val: 194.70,  mean: 554.027 },
+  { sensor: 'sensor_12', z: 131.18,  val: 183.24,  mean: 521.413 },
+  { sensor: 'sensor_2',  z: 113.75,  val: 556.37,  mean: 641.682 },
+  { sensor: 'sensor_20', z: 89.72,   val: 14.92,   mean: 39.234 },
+  { sensor: 'sensor_21', z: 82.09,   val: 8.7823,  mean: 23.394 },
+];
+
+// Cluster 5 causal regression coefficients
+const CLUSTER5_COEFS = {
+  sensor_4:  { cause: 'op_setting_1', coef: -9.0555, intercept: 1448.4997, std: 7.4013, actual: 1130.99, predicted: 1131.49, z: 0.0674 },
+  sensor_11: { cause: 'op_setting_2', coef: 2.1186,  intercept: 40.2017,   std: 0.2300, actual: 42.02,   predicted: 41.98,   z: 0.1581 },
+  sensor_15: { cause: 'op_setting_2', coef: -0.1160, intercept: 9.4298,    std: 0.0382, actual: 9.3274,  predicted: 9.3322,  z: 0.1265 },
+  sensor_3:  { cause: 'op_setting_3', coef: 0.0,     intercept: 1366.713,  std: 5.6153, actual: 1367.10, predicted: 1366.71, z: 0.0689 },
+  sensor_9:  { cause: 'op_setting_3', coef: 0.0,     intercept: 8356.103,  std: 16.988, actual: 8356.99, predicted: 8356.10, z: 0.0522 },
+};
+
+// Cluster centroids (op1, op2, op3)
+const CENTROIDS = [
+  { id:0, op1:42.00, op2:0.840, op3:100, label:'Cluster 0 — Ultra-high altitude', color:'#4f8ef7' },
+  { id:1, op1:20.00, op2:0.700, op3:100, label:'Cluster 1 — Mid altitude',        color:'#48bb78' },
+  { id:2, op1:25.00, op2:0.620, op3:60,  label:'Cluster 2 — Partial throttle',    color:'#ecc94b' },
+  { id:3, op1: 0.00, op2:0.000, op3:100, label:'Cluster 3 — Ground / sea level',  color:'#f56565' },
+  { id:4, op1:10.00, op2:0.250, op3:100, label:'Cluster 4 — Low altitude',        color:'#ed8936' },
+  { id:5, op1:35.00, op2:0.840, op3:100, label:'Cluster 5 — High-altitude cruise (Engine 90)', color:'#9f7aea' },
+];
+
+// Physics: sensor_11 vs sensor_15 for cluster_5 training sample
+const PHYSICS_SCATTER = [
+  {x:41.99,y:9.3207},{x:41.56,y:9.274},{x:41.88,y:9.2715},{x:42.49,y:9.3973},
+  {x:41.71,y:9.2601},{x:41.53,y:9.3023},{x:41.7,y:9.3382},{x:41.97,y:9.2816},
+  {x:41.89,y:9.3104},{x:41.84,y:9.3152},{x:41.78,y:9.3479},{x:41.81,y:9.3329},
+  {x:42.49,y:9.354},{x:42.15,y:9.359},{x:41.66,y:9.2776},{x:42.08,y:9.3192},
+  {x:42.53,y:9.374},{x:42.34,y:9.3631},{x:42.01,y:9.3274},{x:42.09,y:9.3206},
+  {x:42.07,y:9.3619},{x:42.21,y:9.3964},{x:41.85,y:9.286},{x:41.97,y:9.3564},
+  {x:42.0,y:9.3276},{x:41.86,y:9.3165},{x:41.81,y:9.2927},{x:42.38,y:9.4115},
+  {x:41.94,y:9.3207},{x:42.1,y:9.2875}
+];
+
+// ============================================================
+// SENSOR METADATA
+// ============================================================
+const SENSOR_NAMES = [
+  'Fan inlet temp',       // s1
+  'LPC outlet temp',      // s2
+  'HPC outlet temp',      // s3  causal ← op3
+  'LPT outlet temp',      // s4  causal ← op1
+  'Fan inlet pressure',   // s5
+  'Bypass-duct pressure', // s6
+  'HPC inlet pressure',   // s7
+  'Fan speed',            // s8
+  'Core speed',           // s9  causal ← op3
+  'Engine pressure ratio',// s10
+  'HPC outlet pressure',  // s11 causal ← op2
+  'Fan bypass ratio',     // s12
+  'Corrected fan speed',  // s13
+  'Corrected core speed', // s14
+  'Bypass press. ratio',  // s15 causal ← op2
+  'Bleed enthalpy',       // s16
+  'Req. fan speed',       // s17
+  'Req. fn1',             // s18
+  'HPT coolant bleed',    // s19
+  'LPT coolant bleed',    // s20
+  'W31 bleed',            // s21
+];
+// Short one-line descriptions for each sensor (shown under value in step 1)
+const SENSOR_SHORT = [
+  'Fan inlet temp',     // s1
+  'LPC outlet temp',    // s2
+  'HPC outlet temp',    // s3
+  'LPT outlet temp',    // s4
+  'Fan pressure',       // s5
+  'Bypass pressure',    // s6
+  'HPC inlet press.',   // s7
+  'Fan speed (rpm)',    // s8
+  'Core speed (rpm)',   // s9
+  'Pressure ratio',     // s10
+  'HPC outlet press.',  // s11
+  'Fan bypass ratio',   // s12
+  'Corr. fan speed',    // s13
+  'Corr. core speed',   // s14
+  'Bypass press. ratio',// s15
+  'Bleed enthalpy',     // s16
+  'Req. fan speed',     // s17
+  'Req. fn1',           // s18
+  'HPT coolant',        // s19
+  'LPT coolant',        // s20
+  'W31 bleed',          // s21
+];
+
+// Per-sensor "alarming" status based on global z-score (for step 1 color coding)
+// red = global z > 50, yellow = 2..50, green = < 2
+const SENSOR_STATUS = [
+  'green',  // s1
+  'yellow', // s2  z=113 but noise floor = 0.75
+  'red',    // s3  (z~36 from FD001 mean)
+  'red',    // s4
+  'green',  // s5
+  'green',  // s6
+  'red',    // s7  z=596
+  'red',    // s8  z=1100
+  'yellow', // s9
+  'green',  // s10
+  'yellow', // s11
+  'red',    // s12
+  'green',  // s13 (z small)
+  'yellow', // s14
+  'red',    // s15
+  'green',  // s16
+  'yellow', // s17
+  'green',  // s18
+  'green',  // s19
+  'red',    // s20
+  'red',    // s21
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let currentStep = 1;
+let maxVisited = 1;
+let mode = 'demo';
+let activeCharts = {};
+
+// ============================================================
+// STEP RENDERERS
+// ============================================================
+const STEPS = [
+  // STEP 1
+  {
+    id: 1,
+    title: 'Meet the Engine',
+    render: () => `
+      <div class="step-num">Step 1 of 7</div>
+      <h1 class="step-title">Engine #90 just sent its data</h1>
+      <p class="step-story">Every 30 seconds, a turbofan sends 21 sensor readings to the monitoring system. <strong>Engine 90 is mid-flight — 35,000 ft, Mach 0.84, full throttle.</strong> The <span class="jargon" data-tip="A sequence of 7 automated steps that ingest sensor data, score it for anomalies, check physics, and generate an explanation">pipeline</span> needs to decide: is anything wrong? Walk through each step to find out.</p>
+
+      <div id="live-panel">
+        <label>Backend URL:</label>
+        <input type="text" id="backend-url" value="http://localhost:8000" />
+        <button class="connect-btn" onclick="connectLive()">Connect</button>
+        <span id="live-status"></span>
+      </div>
+
+      <div class="ops-row">
+        <div class="op-card">
+          <div class="op-val">35.0</div>
+          <div class="op-label">Altitude setting</div>
+          <div class="op-context">~35,000 ft cruise</div>
+        </div>
+        <div class="op-card">
+          <div class="op-val">0.84</div>
+          <div class="op-label">Mach number</div>
+          <div class="op-context">High-speed cruise</div>
+        </div>
+        <div class="op-card">
+          <div class="op-val">100%</div>
+          <div class="op-label">Throttle (TRA)</div>
+          <div class="op-context">Full throttle</div>
+        </div>
+      </div>
+
+      <div class="sensor-grid">
+        ${ENGINE.s.map((v, i) => {
+          const isCausal = [2,3,8,10,14].includes(i); // 0-indexed: sensor_3,4,9,11,15
+          const desc = SENSOR_SHORT[i];
+          const fmt = (Number.isInteger(v) || v >= 100) ? v.toFixed(0) : v.toFixed(2);
+          return '<div class="sensor-cell' + (isCausal ? ' causal-cell' : '') + '">' +
+            '<div class="sensor-name">S' + (i+1) + (isCausal ? ' <span class="causal-tag">key</span>' : '') + '</div>' +
+            '<div class="sensor-val">' + fmt + '</div>' +
+            '<div class="sensor-desc">' + desc + '</div>' +
+          '</div>';
+        }).join('')}
+      </div>
+
+      <div class="callout blue">
+        <div class="callout-icon">&#128270;</div>
+        <div class="callout-body"><strong>5 sensors are <span class="jargon" data-tip="Their readings are directly predicted by physics from the flight conditions — altitude, Mach number, and throttle. If they deviate from the prediction, something is genuinely off.">"causal"</span></strong> — physically linked to the flight conditions. The pipeline focuses its anomaly scoring on these 5 because deviations here can't be explained away by altitude or speed. Hit <strong>Next</strong> to see how a traditional system would score them.</div>
+      </div>
+
+      <button class="math-toggle" onclick="toggleMath('m1')"><span class="arrow">&#9658;</span> Which sensors does the pipeline use, and why?</button>
+      <div class="math-panel" id="m1">
+        <p style="margin-bottom:10px;">Of 21 sensors, 8 carry useful signal. The other 13 are near-constant at any given operating condition (zero variance) and are ignored. The 5 marked <span style="color:var(--accent)">Causal</span> have a known physical cause — the pipeline scores anomalies on <em>residuals from the expected value</em>, not raw readings.</p>
+        <table>
+          <tr><th>ID</th><th>Measures</th><th>Engine 90 value</th><th>Role</th></tr>
+          <tr><td>S2</td><td>LPC outlet temperature (°R)</td><td>556.37</td><td style="color:var(--muted)">Monitored</td></tr>
+          <tr><td>S3</td><td>HPC outlet temperature (°R)</td><td>1367.10</td><td style="color:var(--accent)">Causal → throttle</td></tr>
+          <tr><td>S4</td><td>LPT outlet temperature (°R)</td><td>1130.99</td><td style="color:var(--accent)">Causal → altitude</td></tr>
+          <tr><td>S7</td><td>HPC inlet pressure (psia)</td><td>194.70</td><td style="color:var(--muted)">Monitored</td></tr>
+          <tr><td>S8</td><td>Physical fan speed (rpm)</td><td>2223.03</td><td style="color:var(--muted)">Monitored</td></tr>
+          <tr><td>S9</td><td>Physical core speed (rpm)</td><td>8356.99</td><td style="color:var(--accent)">Causal → throttle</td></tr>
+          <tr><td>S11</td><td>HPC outlet pressure (psia)</td><td>42.02</td><td style="color:var(--accent)">Causal → Mach</td></tr>
+          <tr><td>S15</td><td>Bypass pressure ratio</td><td>9.3274</td><td style="color:var(--accent)">Causal → Mach</td></tr>
+        </table>
+        <p style="margin-top:10px; color:var(--muted);">Source: NASA CMAPSS FD002 test set, engine 90, cycle 91 of 171. Engine fails at cycle 171 — it is healthy right now.</p>
+      </div>
+    `
+  },
+
+  // STEP 2
+  {
+    id: 2,
+    title: 'The Old Way — Global Z-Score',
+    render: () => `
+      <div class="step-num">Step 2 of 7</div>
+      <h1 class="step-title">Traditional approach: compare to the global average</h1>
+      <p class="step-story">The traditional approach uses a <span class="jargon" data-tip="A score measuring how far a reading strays from the fleet-wide average, in units of standard deviations. Normal = z &lt; 2. Engine 90 scores z = 1100 on fan speed."><strong>global z-score</strong></span>: compare each sensor to the average across <em>all</em> engines in the training data. "Normal" means z &lt; 2. For Engine 90, five sensors score in the <strong>hundreds to thousands</strong> — because the baseline was trained on sea-level engines, and Engine 90 is at 35,000 ft.</p>
+
+      <div class="chart-box">
+        <h4>Global z-scores for Engine 90 — how many standard deviations from the FD001 mean?</h4>
+        <div class="chart-wrap"><canvas id="chart-global"></canvas></div>
+      </div>
+
+      <div id="alert-banner" style="display:none; background:var(--red-bg); border:1px solid rgba(245,101,101,0.4); border-radius:10px; padding:20px 24px; margin:16px 0; text-align:center; animation: fadeIn 0.4s ease;">
+        <div style="font-size:32px; margin-bottom:6px;">🚨</div>
+        <div style="font-size:20px; font-weight:800; color:var(--red);">ALERT FIRES</div>
+        <div style="font-size:14px; color:var(--muted); margin-top:6px;">Global score = 1.000 (capped) &nbsp;·&nbsp; Top z-score = 1100 &nbsp;·&nbsp; Threshold = 0.30</div>
+        <div style="font-size:13px; color:var(--red); margin-top:8px; font-weight:600;">This would page an operator at 3 am for a <em>healthy engine</em></div>
+      </div>
+
+      <div class="callout red">
+        <div class="callout-icon">&#9888;</div>
+        <div class="callout-body"><strong>100% of FD002 test engines</strong> trigger this alert. Every single one. The system is useless.</div>
+      </div>
+
+      <button class="math-toggle" onclick="toggleMath('m2')"><span class="arrow">&#9658;</span> Show the math</button>
+      <div class="math-panel" id="m2">
+        <p>Global z-score formula:</p>
+        <p><code>z = |x − μ| / max(σ, noise_floor)</code></p>
+        <p style="margin-top:10px;">For sensor_8 (fan speed):</p>
+        <p><code>z = |2223.03 − 2388.10| / max(0.058, 0.15) = 165.07 / 0.15 = <strong>1100.5</strong></code></p>
+        <p style="margin-top:10px;">Score = min(top3_mean / 5.0, 1.0). Top 3 z-scores: 1100.5, 595.9, 131.2 → mean = 609.2 → score capped at <strong>1.000</strong></p>
+        <p style="margin-top:10px;"><em>Why is σ so small?</em> The FD001 training set has only one operating condition — all engines run at sea level. Fan speed barely varies (σ=0.058). At high altitude, fans naturally spin much slower — but the global model calls it catastrophic.</p>
+      </div>
+    `,
+    onEnter: () => {
+      setTimeout(() => {
+        renderGlobalChart();
+        setTimeout(() => {
+          document.getElementById('alert-banner').style.display = 'block';
+        }, 800);
+      }, 50);
+    }
+  },
+
+  // STEP 3
+  {
+    id: 3,
+    title: 'Why the Old Way Fails',
+    render: () => `
+      <div class="step-num">Step 3 of 7</div>
+      <h1 class="step-title">Context matters: not all engines fly at the same altitude</h1>
+      <p class="step-story">Engine 90 is at <strong>35,000 feet, Mach 0.84</strong>. At that altitude, air is thin and cold — fans spin slower, pressures are lower, temperatures differ. This isn't a fault. <strong>It's physics.</strong> The training data has 6 distinct <span class="jargon" data-tip="A specific combination of altitude, speed, and throttle that defines how an engine behaves — like 'sea level' vs '35,000 ft cruise'">operating regimes</span>. Using one global average ignores all of them.</p>
+
+      <div class="chart-box">
+        <h4>Operating regimes — KMeans clusters (op_setting_1 vs op_setting_2)</h4>
+        <div class="chart-wrap tall"><canvas id="chart-regime"></canvas></div>
+      </div>
+
+      <table class="cluster-table" style="margin-top:20px;">
+        <tr><th></th><th>Cluster</th><th>Altitude (op1)</th><th>Mach (op2)</th><th>Throttle (op3)</th><th>Description</th></tr>
+        ${CENTROIDS.map(c => `
+          <tr class="${c.id === 5 ? 'highlight-row' : ''}">
+            <td><span class="cluster-dot" style="background:${c.color}"></span></td>
+            <td><strong>${c.id}</strong></td>
+            <td>${c.op1.toFixed(1)}</td>
+            <td>${c.op2.toFixed(3)}</td>
+            <td>${c.op3.toFixed(0)}%</td>
+            <td style="font-size:12px; color:var(--muted)">${c.label}</td>
+          </tr>`).join('')}
+      </table>
+
+      <div class="callout blue">
+        <div class="callout-icon">&#9992;</div>
+        <div class="callout-body"><strong>Engine 90 belongs to Cluster 5</strong> — high-altitude cruise at 35k ft, Mach 0.84. Its sensors read lower than sea-level (Cluster 3) engines by design.</div>
+      </div>
+
+      <button class="math-toggle" onclick="toggleMath('m3')"><span class="arrow">&#9658;</span> How does KMeans clustering work?</button>
+      <div class="math-panel" id="m3">
+        <p>KMeans partitions the 3 operating settings into 6 groups by minimizing within-cluster variance:</p>
+        <p><code>argmin_C Σ_i Σ_{x∈C_i} ||x − μ_i||²</code></p>
+        <p style="margin-top:10px;">Each engine reading is assigned to the closest centroid in (op_setting_1, op_setting_2, op_setting_3) space. The centroids are naturally spaced at the 6 discrete flight conditions in the CMAPSS simulator.</p>
+        <p style="margin-top:8px;">Trained on FD002 training set (259 engines × ~170 cycles each = ~44,000 readings), <code>n_clusters=6, random_state=42</code>.</p>
+      </div>
+    `,
+    onEnter: () => setTimeout(renderRegimeChart, 50)
+  },
+
+  // STEP 4
+  {
+    id: 4,
+    title: 'Regime-Aware Causal Scoring',
+    render: () => `
+      <div class="step-num">Step 4 of 7</div>
+      <h1 class="step-title">Compare within the regime, not against the global fleet</h1>
+      <p class="step-story">Instead of asking "is sensor_8 normal for any engine?" we ask <strong>"is sensor_8 normal for a high-altitude engine?"</strong> We fit a regression model per <span class="jargon" data-tip="One of 6 groups of similar flight conditions — same altitude, speed, and throttle. Engine 90 belongs to Cluster 5: high-altitude cruise.">cluster</span>: each sensor's expected value is predicted from the flight condition that physically controls it. The <span class="jargon" data-tip="The gap between what was actually read and what the physics-based model predicted it should be. A small residual = reading as expected. A large one = something is off.">residual</span> tells us if something is genuinely off.</p>
+
+      <div class="chart-row">
+        <div>
+          <div class="score-display" id="score-box">
+            <div class="score-label">Anomaly Score</div>
+            <div class="score-number" id="score-num" style="color:var(--red)">1.000</div>
+            <div class="score-bar-track"><div class="score-bar-fill" id="score-fill" style="width:100%;background:var(--red)"></div></div>
+            <div class="score-decision" id="score-dec" style="color:var(--red)">ALERT (Global)</div>
+          </div>
+        </div>
+        <div>
+          <div class="chart-box" style="margin:0;">
+            <h4>Causal residual z-scores (Cluster 5)</h4>
+            <div class="chart-wrap sm"><canvas id="chart-causal"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="residual-grid">
+        ${Object.entries(CLUSTER5_COEFS).map(([s, c]) => `
+          <div class="residual-cell">
+            <div class="residual-sensor">${s.replace('sensor_','s')}</div>
+            <div class="residual-z">${c.z.toFixed(3)}</div>
+            <div class="residual-label">z-score</div>
+          </div>`).join('')}
+        <div class="residual-cell" style="grid-column:span 1;">
+          <div class="residual-sensor">Mean z</div>
+          <div class="residual-z" style="color:var(--green)">0.095</div>
+          <div class="residual-label">avg</div>
+        </div>
+      </div>
+
+      <div class="callout green">
+        <div class="callout-icon">&#10003;</div>
+        <div class="callout-body"><strong>Causal score = 0.019</strong> — well below the 0.30 threshold. All five causal sensors are within 0.16σ of their regime-predicted values. The engine is operating normally for its flight condition.</div>
+      </div>
+
+      <button class="math-toggle" onclick="toggleMath('m4')"><span class="arrow">&#9658;</span> Show the regression details</button>
+      <div class="math-panel" id="m4">
+        <p>For each causal sensor, fit per-cluster linear regression: <code>sensor_k = β₀ + β₁ · cause + ε</code></p>
+        <p style="margin-top:10px;">Residual z-score: <code>z = |actual − predicted| / σ_residual</code></p>
+        <table>
+          <tr><th>Sensor</th><th>Cause</th><th>Coef β₁</th><th>Intercept β₀</th><th>Residual σ</th><th>z</th></tr>
+          ${Object.entries(CLUSTER5_COEFS).map(([s, c]) =>
+            `<tr><td>${s}</td><td>${c.cause}</td><td>${c.coef.toFixed(4)}</td><td>${c.intercept.toFixed(3)}</td><td>${c.std.toFixed(4)}</td><td>${c.z.toFixed(4)}</td></tr>`
+          ).join('')}
+        </table>
+        <p style="margin-top:10px;">Mean z = 0.0946 → score = min(0.0946/5.0, 1.0) = <strong>0.0189</strong></p>
+      </div>
+    `,
+    onEnter: () => {
+      setTimeout(() => {
+        renderCausalChart();
+        animateScore();
+      }, 50);
+    }
+  },
+
+  // STEP 5
+  {
+    id: 5,
+    title: 'Physics Veto',
+    render: () => `
+      <div class="step-num">Step 5 of 7</div>
+      <h1 class="step-title">A structural physics check as a safety net</h1>
+      <p class="step-story">Even with regime-aware scoring, a sensor could be physically broken rather than just operating differently. We apply a <span class="jargon" data-tip="A statistical test that checks whether two things still move together as expected. If they diverge, something is structurally wrong."><strong>G-test</strong></span> on the coupling between HPC outlet pressure and bypass pressure ratio. These two sensors must follow the <span class="jargon" data-tip="A physics law: when you compress gas, temperature and pressure rise together in a fixed ratio. If they stop tracking each other, the sensor — not the engine — has failed.">isentropic relation</span> — if they decorrelate, the sensor has failed, not the engine.</p>
+
+      <div class="chart-box">
+        <h4>Cluster 5: sensor_11 (HPC outlet pressure) vs sensor_15 (bypass pressure ratio)</h4>
+        <div class="chart-wrap tall"><canvas id="chart-physics"></canvas></div>
+      </div>
+
+      <div class="physics-result">
+        <div class="physics-icon">&#9989;</div>
+        <div class="physics-detail">
+          <h4 style="color:var(--green)">Physics check: PASS</h4>
+          <div class="physics-stat">G-test statistic: <span>χ² = 12.4</span></div>
+          <div class="physics-stat">Critical threshold (df=16): <span>26.30</span></div>
+          <div class="physics-stat">Engine 90 point: <span>sensor_11 = 42.02, sensor_15 = 9.3274</span> — lies on the regression line</div>
+          <div class="physics-stat">Conclusion: <span style="color:var(--green)">HPC coupling intact — no sensor fault</span></div>
+        </div>
+      </div>
+
+      <div class="callout blue">
+        <div class="callout-icon">&#9881;</div>
+        <div class="callout-body"><strong>When would this veto fire?</strong> If a sensor is physically broken, it will decorrelate from its partner. χ² > 26.30 halves the anomaly score — the system flags it as a sensor fault, not an engine fault.</div>
+      </div>
+
+      <button class="math-toggle" onclick="toggleMath('m5')"><span class="arrow">&#9658;</span> Show the G-test details</button>
+      <div class="math-panel" id="m5">
+        <p>G-test (log-likelihood ratio test) on a 5×5 contingency table of binned sensor_11 × sensor_15 values:</p>
+        <p><code>G = 2 Σᵢⱼ Oᵢⱼ · ln(Oᵢⱼ / Eᵢⱼ)</code></p>
+        <p style="margin-top:8px;">where Eᵢⱼ = row_i_total × col_j_total / N (independence assumption).</p>
+        <p style="margin-top:8px;">Under independence, G ~ χ²(df=(rows-1)×(cols-1)) = χ²(16).</p>
+        <p style="margin-top:8px;">Critical value at p=0.05: <strong>26.30</strong>. Our G = 12.4 → p > 0.05 → sensors are coupled → <strong>no veto applied</strong>.</p>
+        <p style="margin-top:8px;">Isentropic relation: <code>T₂/T₁ = (P₂/P₁)^((γ-1)/γ)</code> with γ ≈ 1.4 for air. sensor_11 and sensor_15 encode this relationship.</p>
+      </div>
+    `,
+    onEnter: () => setTimeout(renderPhysicsChart, 50)
+  },
+
+  // STEP 6
+  {
+    id: 6,
+    title: 'LLM Explanation',
+    render: () => `
+      <div class="step-num">Step 6 of 7</div>
+      <h1 class="step-title">Turning numbers into plain English</h1>
+      <p class="step-story">A score of 0.019 means nothing to an engineer on night shift. The pipeline passes the <span class="jargon" data-tip="How far each sensor deviated from its physics-predicted value — the evidence for or against an anomaly">causal residuals</span> and flight-condition assignment to a <strong>Llama-3 70B language model</strong> (via <span class="jargon" data-tip="A fast AI inference service that runs large language models in the cloud with low latency">Groq</span>), which generates a concise, actionable explanation in plain English.</p>
+
+      <div class="llm-card">
+        <div class="llm-header">
+          <span class="llm-badge">LLM Output</span>
+          <span class="llm-model">Llama-3 70B via Groq &nbsp;·&nbsp; &lt;400 ms</span>
+        </div>
+        <div class="llm-text" id="llm-text"></div>
+      </div>
+
+      <div class="callout blue">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-body"><strong>Input to the LLM:</strong> regime cluster (5), causal residuals for 5 sensors, physics veto result, anomaly score (0.019), and a system prompt explaining the causal DAG. No raw sensor numbers are passed — only the derived features.</div>
+      </div>
+
+      <button class="math-toggle" onclick="toggleMath('m6')"><span class="arrow">&#9658;</span> See the agent state JSON sent to the LLM</button>
+      <div class="math-panel" id="m6">
+        <pre style="font-size:11px; overflow-x:auto; color:var(--accent);">{
+  "engine_id": 90,
+  "cycle": 91,
+  "regime": "cluster_5",
+  "causal_score_refined": 0.0189,
+  "causal_details": {
+    "sensor_4":  0.0674,
+    "sensor_11": 0.1581,
+    "sensor_15": 0.1265,
+    "sensor_3":  0.0689,
+    "sensor_9":  0.0522
+  },
+  "physics_veto_applied": false,
+  "from_cache": false,
+  "z_score": 1.0,
+  "combined_score": 0.5095
+}</pre>
+        <p style="margin-top:8px;">The LLM prompt instructs the model to explain the causal scores in terms of the operating regime, mention the physics check result, and deliver a recommendation in plain English for an operator.</p>
+      </div>
+    `,
+    onEnter: () => {
+      const text = 'Engine 90 is operating within normal parameters for high-altitude cruise (Regime 5, ~35,000 ft, Mach 0.84). All five causal sensors — LPT outlet temperature, HPC pressure, bypass ratio, HPC outlet temperature, and core speed — show residuals within 0.16 standard deviations of the cluster baseline. The isentropic temperature-pressure coupling for the high-pressure compressor is intact. No anomaly detected. No operator action required.';
+      typewrite('llm-text', text, 18);
+    }
+  },
+
+  // STEP 7
+  {
+    id: 7,
+    title: 'The Verdict',
+    render: () => `
+      <div class="step-num">Step 7 of 7</div>
+      <h1 class="step-title">False alarm suppressed. No operator paged.</h1>
+      <p class="step-story">Engine 90 was perfectly healthy at cycle 91. It didn't fail for another <strong>80 cycles</strong>. Without <span class="jargon" data-tip="Knowing which flight condition (altitude, speed, throttle) the engine is in before deciding if a reading is abnormal">regime awareness</span>, an operator would have been paged for nothing. With it, the alarm is suppressed — and when a <em>real</em> fault appears, the alert actually means something.</p>
+
+      <div class="verdict-split">
+        <div class="verdict-card bad">
+          <div class="verdict-icon">🚨</div>
+          <div class="verdict-label">Without regime awareness</div>
+          <div class="verdict-title">ALERT</div>
+          <div class="verdict-detail">Global score: 1.000<br>z-score: 1100 (sensor_8)<br>Would page operator at 3am<br>Engine actually healthy</div>
+        </div>
+        <div class="verdict-card good">
+          <div class="verdict-icon">&#10003;</div>
+          <div class="verdict-label">With regime awareness</div>
+          <div class="verdict-title">OK</div>
+          <div class="verdict-detail">Causal score: 0.019<br>All 5 sensors within 0.16σ<br>Physics check: PASS<br>False alarm suppressed</div>
+        </div>
+      </div>
+
+      <div class="impact-row">
+        <div>
+          <div class="impact-num" id="impact-counter">0</div>
+        </div>
+        <div class="impact-desc">
+          <strong>false alarms suppressed</strong>
+          in the FD002 test set (259 engines) — that's the difference between 100% alert rate and 32%.
+        </div>
+      </div>
+
+      <div class="callout green">
+        <div class="callout-icon">&#128200;</div>
+        <div class="callout-body"><strong>FD002 results:</strong> Global z-score fires on 259/259 engines (100% false positive rate). Regime-aware causal scoring achieves 66% true coverage (F1 = 0.279) with mean lead time 167.5 cycles — alarms are correctly conditioned on operating regime.</div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:28px; flex-wrap:wrap;">
+        <a href="index.html" style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;font-size:14px;transition:opacity 0.15s;">Try Live Dashboard &#8594;</a>
+        <a href="showcase.html#results" style="display:inline-flex;align-items:center;gap:8px;background:transparent;color:var(--muted);text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:500;font-size:14px;border:1px solid var(--border);transition:color 0.15s;">See Full Results &#8594;</a>
+      </div>
+    `,
+    onEnter: () => setTimeout(() => animateCounter('impact-counter', 177, 1400), 300)
+  }
+];
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function goToStep(n) {
+  if (n < 1 || n > 7) return;
+  destroyCharts();
+  currentStep = n;
+  if (n > maxVisited) maxVisited = n;
+  renderStep(n);
+  updateNav(n);
+  location.hash = 'step=' + n;
+}
+
+function nextStep() { goToStep(currentStep + 1); }
+function prevStep() { goToStep(currentStep - 1); }
+
+function renderStep(n) {
+  const stepDef = STEPS[n - 1];
+  document.getElementById('step-content').innerHTML = stepDef.render();
+  if (mode === 'live') {
+    const lp = document.getElementById('live-panel');
+    if (lp) lp.classList.add('visible');
+  }
+  if (stepDef.onEnter) stepDef.onEnter();
+}
+
+function updateNav(n) {
+  // Sidebar
+  for (let i = 1; i <= 7; i++) {
+    const el = document.getElementById('nav-' + i);
+    const dot = document.getElementById('dot-' + i);
+    el.classList.remove('active', 'done');
+    if (i === n) { el.classList.add('active'); dot.textContent = i; }
+    else if (i < n) { el.classList.add('done'); dot.textContent = '✓'; }
+    else { dot.textContent = i; }
+  }
+  // Progress bar
+  document.getElementById('progress-fill').style.width = (n / 7 * 100) + '%';
+  // Counter
+  document.getElementById('step-counter').textContent = 'Step ' + n + ' of 7';
+  // Buttons
+  document.getElementById('btn-back').disabled = (n === 1);
+  const btnNext = document.getElementById('btn-next');
+  if (n === 7) {
+    btnNext.textContent = '✓ Done';
+    btnNext.onclick = () => { window.location.href = 'showcase.html'; };
+  } else {
+    btnNext.textContent = 'Next →';
+    btnNext.onclick = nextStep;
+  }
+}
+
+// ============================================================
+// MODE TOGGLE
+// ============================================================
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-demo').classList.toggle('active', m === 'demo');
+  document.getElementById('btn-live').classList.toggle('active', m === 'live');
+  const lp = document.getElementById('live-panel');
+  if (lp) {
+    lp.classList.toggle('visible', m === 'live');
+  }
+}
+
+async function connectLive() {
+  const url = document.getElementById('backend-url').value.trim();
+  const status = document.getElementById('live-status');
+  status.textContent = 'Connecting…';
+  status.className = '';
+  try {
+    const r = await fetch(url + '/health', { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      status.textContent = '● Connected';
+      status.className = 'ok';
+    } else {
+      throw new Error('Non-OK response');
+    }
+  } catch {
+    status.textContent = '✗ Unreachable — using demo data';
+    status.className = 'err';
+    setMode('demo');
+  }
+}
+
+// ============================================================
+// CHART HELPERS
+// ============================================================
+function destroyCharts() {
+  Object.values(activeCharts).forEach(c => c.destroy());
+  activeCharts = {};
+}
+
+function renderGlobalChart() {
+  const ctx = document.getElementById('chart-global');
+  if (!ctx) return;
+  const top5 = GLOBAL_ZSCORES.slice(0, 5);
+  const labels = top5.map(d => d.sensor.replace('sensor_', 'sensor '));
+  const zs = top5.map(d => d.z);
+  const colors = zs.map(z => z > 100 ? 'rgba(245,101,101,0.75)' : 'rgba(236,201,75,0.75)');
+  const borders = zs.map(z => z > 100 ? 'rgba(245,101,101,1)' : 'rgba(236,201,75,1)');
+  activeCharts.global = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Global z-score (|value − FD001 mean| / σ)',
+        data: zs,
+        backgroundColor: colors,
+        borderColor: borders,
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const d = top5[ctx.dataIndex];
+              return [
+                ` z = ${d.z.toFixed(1)}`,
+                ` Engine 90: ${d.val}`,
+                ` FD001 mean: ${d.mean}`,
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#2a2d3a' },
+          ticks: { color: '#8892a4' },
+          title: { display: true, text: 'z-score  (normal threshold ≈ 2)', color: '#8892a4', font: { size: 11 } }
+        },
+        y: { grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' } }
+      }
+    },
+    plugins: [{
+      id: 'threshold-line',
+      afterDraw(chart) {
+        const { ctx: c, chartArea: { top, bottom }, scales: { x } } = chart;
+        const xPos = x.getPixelForValue(2);
+        c.save();
+        c.setLineDash([5, 4]);
+        c.strokeStyle = 'rgba(72,187,120,0.6)';
+        c.lineWidth = 1.5;
+        c.beginPath();
+        c.moveTo(xPos, top);
+        c.lineTo(xPos, bottom);
+        c.stroke();
+        c.fillStyle = 'rgba(72,187,120,0.8)';
+        c.font = '10px system-ui';
+        c.fillText('normal (z=2)', xPos + 4, top + 12);
+        c.restore();
+      }
+    }]
+  });
+}
+
+function renderRegimeChart() {
+  const ctx = document.getElementById('chart-regime');
+  if (!ctx) return;
+  // Generate jittered points per centroid
+  const rng = (seed) => { let x=seed; return () => { x=Math.sin(x)*10000; return x-Math.floor(x); }; };
+  const datasets = CENTROIDS.map((c, i) => {
+    const r = rng(i * 7.3 + 1.1);
+    const pts = Array.from({length: 30}, () => ({
+      x: c.op1 + (r()-0.5)*0.8,
+      y: c.op2 + (r()-0.5)*0.015
+    }));
+    return {
+      label: 'Cluster ' + c.id + (c.id === 5 ? ' ★' : ''),
+      data: pts,
+      backgroundColor: c.id === 5 ? 'rgba(159,122,234,0.6)' : c.color + '55',
+      borderColor: c.color,
+      pointRadius: c.id === 5 ? 5 : 4,
+      pointStyle: c.id === 5 ? 'triangle' : 'circle',
+    };
+  });
+  // Add Engine 90 star point
+  datasets.push({
+    label: 'Engine 90 ★',
+    data: [{x: ENGINE.op1, y: ENGINE.op2}],
+    backgroundColor: '#fff',
+    borderColor: '#9f7aea',
+    pointRadius: 10,
+    pointStyle: 'star',
+    borderWidth: 2,
+  });
+  activeCharts.regime = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { size: 10 }, boxWidth: 10 } },
+        tooltip: { callbacks: { label: (ctx) => `(${ctx.parsed.x.toFixed(1)}, ${ctx.parsed.y.toFixed(3)})` } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'op_setting_1 (altitude)', color: '#8892a4' }, grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' } },
+        y: { title: { display: true, text: 'op_setting_2 (Mach)', color: '#8892a4' }, grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' } }
+      }
+    }
+  });
+}
+
+function renderCausalChart() {
+  const ctx = document.getElementById('chart-causal');
+  if (!ctx) return;
+  const labels = Object.keys(CLUSTER5_COEFS).map(s => s.replace('sensor_','S'));
+  const zs = Object.values(CLUSTER5_COEFS).map(c => c.z);
+  activeCharts.causal = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Residual z-score',
+        data: zs,
+        backgroundColor: zs.map(z => z > 1.0 ? 'rgba(245,101,101,0.6)' : 'rgba(72,187,120,0.6)'),
+        borderColor: zs.map(z => z > 1.0 ? 'rgba(245,101,101,0.9)' : 'rgba(72,187,120,0.9)'),
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        annotation: { annotations: { line: { type: 'line', yMin: 1.0, yMax: 1.0, borderColor: 'rgba(245,101,101,0.5)', borderWidth: 1, borderDash: [4,4] } } }
+      },
+      scales: {
+        x: { grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' } },
+        y: { max: 0.3, grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' }, title: { display: true, text: 'z-score', color: '#8892a4' } }
+      }
+    }
+  });
+}
+
+function renderPhysicsChart() {
+  const ctx = document.getElementById('chart-physics');
+  if (!ctx) return;
+  // Fit a simple linear regression to show the trend
+  const n = PHYSICS_SCATTER.length;
+  const mx = PHYSICS_SCATTER.reduce((a,b)=>a+b.x,0)/n;
+  const my = PHYSICS_SCATTER.reduce((a,b)=>a+b.y,0)/n;
+  const cov = PHYSICS_SCATTER.reduce((a,b)=>a+(b.x-mx)*(b.y-my),0);
+  const vx = PHYSICS_SCATTER.reduce((a,b)=>a+(b.x-mx)**2,0);
+  const slope = cov/vx;
+  const intercept = my - slope*mx;
+  const x0=41.4, x1=42.7;
+  activeCharts.physics = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'Cluster 5 training engines',
+          data: PHYSICS_SCATTER,
+          backgroundColor: 'rgba(79,142,247,0.4)',
+          borderColor: 'rgba(79,142,247,0.7)',
+          pointRadius: 5,
+        },
+        {
+          label: 'Isentropic fit',
+          type: 'line',
+          data: [{x:x0, y:slope*x0+intercept},{x:x1, y:slope*x1+intercept}],
+          borderColor: 'rgba(79,142,247,0.4)',
+          borderWidth: 1.5,
+          borderDash: [5,3],
+          pointRadius: 0,
+          fill: false,
+        },
+        {
+          label: 'Engine 90 (cycle 91)',
+          data: [{x: 42.02, y: 9.3274}],
+          backgroundColor: '#fff',
+          borderColor: '#48bb78',
+          pointRadius: 10,
+          pointStyle: 'star',
+          borderWidth: 2,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8892a4', font: { size: 11 }, boxWidth: 10 } } },
+      scales: {
+        x: { title: { display: true, text: 'sensor_11 (HPC outlet pressure)', color: '#8892a4' }, grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' } },
+        y: { title: { display: true, text: 'sensor_15 (bypass pressure ratio)', color: '#8892a4' }, grid: { color: '#2a2d3a' }, ticks: { color: '#8892a4' } }
+      }
+    }
+  });
+}
+
+// ============================================================
+// ANIMATIONS
+// ============================================================
+function animateScore() {
+  const numEl = document.getElementById('score-num');
+  const fillEl = document.getElementById('score-fill');
+  const decEl = document.getElementById('score-dec');
+  if (!numEl) return;
+  const start = 1.0, end = 0.0189;
+  const dur = 1400;
+  const t0 = performance.now();
+  function frame(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const val = start + (end - start) * ease;
+    numEl.textContent = val.toFixed(3);
+    const pct = val * 100;
+    fillEl.style.width = pct + '%';
+    const col = p < 0.5 ? 'var(--yellow)' : 'var(--green)';
+    numEl.style.color = col;
+    fillEl.style.background = col;
+    if (p < 1) requestAnimationFrame(frame);
+    else {
+      numEl.textContent = '0.019';
+      numEl.style.color = 'var(--green)';
+      fillEl.style.width = '1.9%';
+      fillEl.style.background = 'var(--green)';
+      decEl.textContent = 'OK — False alarm suppressed';
+      decEl.style.color = 'var(--green)';
+    }
+  }
+  setTimeout(() => requestAnimationFrame(frame), 300);
+}
+
+function animateCounter(id, target, dur) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const t0 = performance.now();
+  function frame(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 4);
+    el.textContent = Math.round(ease * target);
+    if (p < 1) requestAnimationFrame(frame);
+    else el.textContent = target;
+  }
+  requestAnimationFrame(frame);
+}
+
+function typewrite(id, text, delay) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '<span class="cursor"></span>';
+  let i = 0;
+  function next() {
+    if (i >= text.length) {
+      el.querySelector('.cursor')?.remove();
+      return;
+    }
+    const cursor = el.querySelector('.cursor');
+    const span = document.createTextNode(text[i]);
+    el.insertBefore(span, cursor);
+    i++;
+    setTimeout(next, delay + Math.random() * 10);
+  }
+  setTimeout(next, 400);
+}
+
+// ============================================================
+// MATH TOGGLE
+// ============================================================
+function toggleMath(id) {
+  const panel = document.getElementById(id);
+  const btn = panel.previousElementSibling;
+  if (!panel || !btn) return;
+  panel.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
+// ============================================================
+// KEYBOARD NAVIGATION
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextStep();
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevStep();
+});
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  const hash = location.hash.replace('#', '');
+  const match = hash.match(/step=(\d)/);
+  const startStep = match ? Math.min(7, Math.max(1, parseInt(match[1]))) : 1;
+  goToStep(startStep);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>

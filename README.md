@@ -4,11 +4,13 @@ An agentic IoT anomaly triage system for turbofan engine sensors.
 Built for INFO 7390 (Northeastern University) using NASA CMAPSS data.
 
 - Ingests real-time sensor readings, forward-fills missing values, and detects anomalies
-- Scores each reading using a **blended causal + z-score model** (conditioned on operating conditions)
+- Scores each reading using a **blended causal + z-score model** conditioned on a KMeans operating-regime classifier (6 regimes from CMAPSS FD002)
 - Monitors sensor distribution drift with Population Stability Index (PSI)
-- Validates physical sensor coupling with G-tests (thermodynamic consistency)
-- Writes every decision to PostgreSQL for auditability and LLM reasoning traces
-- Returns NORMAL / UNCERTAIN / ALERT decisions with per-sensor causal residuals
+- Validates physical sensor coupling with a G-test grounded in the isentropic compression relation (sensor_11 / sensor_15)
+- Runs a 7-node LangGraph agent per alert: regime classification → causal scoring → physics veto → cache lookup → LLM explanation → decision write
+- Returns NORMAL / UNCERTAIN / ALERT decisions with per-sensor causal residuals and LLM-generated plain-English explanations
+- Operator feedback loop: TRUE_POSITIVE / FALSE_POSITIVE / UNCERTAIN labels adjust future confidence via the `cache_lookup` node
+- HTML dashboard for live alert feed, LLM explanation display, and operator feedback
 
 ---
 
@@ -43,7 +45,7 @@ simulate_stream.py ──POST /ingest──► FastAPI (backend/main.py)
 
 **Causal DAG** — the scorer conditions each sensor on its physical cause:
 ```
-op_setting_1 (Altitude) → sensor_4   (HPC outlet temperature)
+op_setting_1 (Altitude) → sensor_4   (LPC outlet temperature)
 op_setting_2 (Mach)     → sensor_11  (HPC outlet temperature)
                         → sensor_15  (HPC outlet pressure)
 op_setting_3 (TRA)      → sensor_3   (fan inlet temperature)
@@ -55,7 +57,7 @@ op_setting_3 (TRA)      → sensor_3   (fan inlet temperature)
 ## Quick Start
 
 ### Prerequisites
-- Python 3.11
+- Python 3.11+
 - A [Neon](https://neon.tech) PostgreSQL project (free tier)
 - A [Groq](https://console.groq.com) API key (free tier)
 
@@ -88,10 +90,17 @@ python scripts/download_cmapss.py
 # 6. Create database schema
 python scripts/create_schema.py
 
-# 7. Start the server
+# 7. Compute regime coefficients (required for FD002 multi-cluster scoring)
+python scripts/compute_regime_coefficients.py
+
+# 8. Start the backend
 uvicorn backend.main:app --reload
 
-# 8. Test it
+# 9. Open the dashboard (in a separate terminal)
+cd dashboard && python -m http.server 3000
+# → open http://localhost:3000
+
+# 10. Test the API
 curl http://localhost:8000/health
 # → {"status":"ok","message":"Sensor triage system is running"}
 ```
@@ -116,10 +125,14 @@ curl http://localhost:8000/health
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check — used by Render for liveness |
-| POST | `/ingest` | Submit one sensor reading; returns blended anomaly decision |
+| POST | `/ingest` | Submit one sensor reading; returns blended anomaly decision + LLM explanation |
 | GET | `/telemetry/{id}` | Retrieve a saved telemetry window by UUID |
 | GET | `/psi/status` | Current PSI drift score per sensor |
 | POST | `/baselines/reset` | Log maintenance event, clear PSI baselines |
+| GET | `/alerts/recent` | Most recent alert events (default 20, max via `?limit=N`) |
+| GET | `/alerts/{id}/explanation` | LLM explanation + operating regime from reasoning traces |
+| GET | `/alerts/{id}/feedback` | All operator feedback for a given alert |
+| POST | `/feedback` | Submit operator label (TRUE_POSITIVE / FALSE_POSITIVE / UNCERTAIN) |
 
 API docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs)
 
@@ -133,6 +146,7 @@ API docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs)
   "imputation_density": 0.05,
   "stale_sensors": [],
   "warnings": [],
+  "llm_explanation": "Elevated HPC outlet temperature residual suggests early-stage compressor degradation.",
   "created_at": "2026-04-10T12:00:00Z"
 }
 ```
@@ -163,6 +177,10 @@ Do not use the play button on individual test files (it skips `conftest.py`).
 | `scripts/download_cmapss.py` | Download 12 CMAPSS data files from GitHub mirror |
 | `scripts/create_schema.py` | Apply all 8 tables to Neon (safe to re-run) |
 | `scripts/simulate_stream.py` | POST CMAPSS rows to /ingest as a live sensor feed |
+| `scripts/compute_regime_coefficients.py` | Train KMeans (k=6) on FD002, save centroids + per-cluster causal coefficients to `data/processed/regime_coefficients.json` |
+| `scripts/ablation_study.py` | Run 4-variant ablation on FD001 (IF / z-score / causal / full pipeline) with Wilcoxon + Fisher tests |
+| `scripts/fd002_regime_eval.py` | Evaluate global z-score vs regime-aware causal on FD002 (259 engines, 6 conditions) |
+| `scripts/plot_dag.py` | Generate causal DAG figure (`paper/causal_dag.png`, `paper/causal_dag.pdf`) |
 | `scripts/lead_time_baseline.py` | Train Isolation Forest, save lead-time CSV |
 | `scripts/neon_smoke_test.py` | Quick DB connectivity check |
 
@@ -181,23 +199,39 @@ python scripts/simulate_stream.py --engines 1,2,3 --delay 0
 iot-anomaly-triage-master/
 │
 ├── backend/
-│   ├── main.py                  # FastAPI app — all endpoints
+│   ├── main.py                  # FastAPI app — all endpoints + CORS
 │   ├── database.py              # SQLAlchemy engine (QueuePool → Neon)
 │   ├── models.py                # 8 SQLAlchemy Core table definitions
 │   ├── schemas.py               # Pydantic v2 request/response schemas
 │   ├── anomaly.py               # Z-score scorer + decision logic
+│   ├── agent/
+│   │   ├── graph.py             # LangGraph 7-node pipeline definition
+│   │   └── nodes.py             # Node implementations (regime, causal, veto, LLM, …)
 │   └── services/
 │       ├── sensor_service.py    # Forward-fill imputation (5-cycle stale threshold)
-│       ├── causal_scorer.py     # Causal residual scorer (op_settings → sensors)
+│       ├── causal_scorer.py     # Causal residual scorer + FALLBACK_COEFFICIENTS
+│       ├── regime_classifier.py # KMeans nearest-centroid classifier + per-cluster scoring
 │       ├── psi_monitor.py       # PSI drift detection (rolling 200 readings)
-│       └── gtest_monitor.py     # G-test sensor coupling (sensor_11 vs sensor_15)
+│       └── gtest_monitor.py     # G-test sensor coupling (isentropic, sensor_11 vs sensor_15)
 │
 ├── scripts/
-│   ├── download_cmapss.py       # Download NASA dataset
-│   ├── create_schema.py         # Apply DB schema to Neon
-│   ├── simulate_stream.py       # Stream simulator with fault injection
-│   ├── lead_time_baseline.py    # Isolation Forest baseline CSV
-│   └── neon_smoke_test.py       # DB smoke test
+│   ├── download_cmapss.py           # Download NASA dataset
+│   ├── create_schema.py             # Apply DB schema to Neon
+│   ├── simulate_stream.py           # Stream simulator with fault injection
+│   ├── compute_regime_coefficients.py  # Train KMeans + per-cluster coefs → JSON
+│   ├── ablation_study.py            # FD001 ablation (4 variants + significance tests)
+│   ├── fd002_regime_eval.py         # FD002 regime-aware vs global evaluation
+│   ├── plot_dag.py                  # Causal DAG figure (networkx → PNG/PDF)
+│   ├── lead_time_baseline.py        # Isolation Forest baseline CSV
+│   └── neon_smoke_test.py           # DB smoke test
+│
+├── dashboard/
+│   └── index.html               # Single-file HTML/JS dashboard (no build step)
+│
+├── paper/
+│   ├── manuscript.md            # Full 6-section paper (Markdown)
+│   ├── causal_dag.png           # Causal DAG figure
+│   └── causal_dag.pdf           # Causal DAG figure (LaTeX-ready)
 │
 ├── tests/
 │   ├── test_connection.py       # DB connectivity
@@ -210,7 +244,7 @@ iot-anomaly-triage-master/
 │
 ├── data/
 │   ├── raw/                     # CMAPSS files (gitignored)
-│   └── processed/               # baseline CSVs (gitignored)
+│   └── processed/               # CSVs + regime_coefficients.json (gitignored)
 │
 ├── requirements.txt             # Server deps (installed on Render)
 ├── requirements-dev.txt         # Dev deps (jupyter, pytest, scikit-learn)

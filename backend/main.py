@@ -1,22 +1,42 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import insert, select, update
 
 from backend.anomaly import compute_anomaly_score, make_decision
 from backend.database import engine
-from backend.models import alert_events, human_feedback, maintenance_events, telemetry_windows
+from backend.logging_config import get_logger, setup_logging
+from backend.models import alert_events, human_feedback, maintenance_events, reasoning_traces, telemetry_windows
 from backend.schemas import (
     AlertEventOut, FeedbackOut, FeedbackRequest,
     TelemetryReading, TelemetryWindowOut,
 )
 from backend.services.causal_scorer import compute_causal_score, save_dowhy_result
-from backend.services.gtest_monitor import gtest_monitor
+from backend.services.gtest_monitor import G_THRESHOLD, gtest_monitor
 from backend.services.psi_monitor import psi_monitor
 from backend.services.sensor_service import sensor_service
+
+setup_logging()
+log = get_logger("backend.main")
+
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="Don't Trust the Sensors — IoT Anomaly Triage",
     version="0.1.0"
+)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
 )
 
 
@@ -34,10 +54,13 @@ def health_check():
 # ---------------------------------------------------------------------------
 
 @app.post("/ingest", response_model=TelemetryWindowOut, status_code=201)
-def ingest(reading: TelemetryReading):
+@limiter.limit("10/second")
+def ingest(request: Request, reading: TelemetryReading):
     """
     Accept one sensor reading, forward-fill missing values, score it,
     write to telemetry_windows + alert_events, return the saved row.
+
+    Rate limited to 10 requests/second per IP address.
     """
     raw = reading.model_dump()
 
@@ -73,7 +96,7 @@ def ingest(reading: TelemetryReading):
         if is_decorrelated:
             warnings.append(
                 f"G-test: sensor_11/sensor_15 coupling broken "
-                f"(G={g_stat}, threshold=9.49) — possible sensor fault"
+                f"(G={g_stat}, threshold={G_THRESHOLD}) — possible sensor fault"
             )
 
     # --- PSI: feed current readings ---
@@ -129,7 +152,22 @@ def ingest(reading: TelemetryReading):
             )
             alert_event_id = str(alert_result.scalar_one())
     except Exception as exc:
+        log.error("ingest_db_error", extra={
+            "engine_id": reading.engine_id, "cycle": reading.cycle, "error": str(exc),
+        })
         raise HTTPException(status_code=500, detail=str(exc))
+
+    log.info("ingest_scored", extra={
+        "engine_id": reading.engine_id,
+        "cycle": reading.cycle,
+        "z_score": round(z_score, 4),
+        "causal_score": round(causal_score, 4),
+        "combined_score": combined_score,
+        "decision": decision,
+        "confidence": round(confidence, 4),
+        "imputation_density": round(imputation_density, 4),
+        "stale_count": len(stale_sensors),
+    })
 
     # --- LangGraph agent (runs outside the main DB transaction) ---
     # LLM latency (0.5-2s) must not hold the connection open.
@@ -152,12 +190,25 @@ def ingest(reading: TelemetryReading):
                 "agent_warnings": [],
             })
             llm_explanation = agent_result.get("llm_explanation")
-            for w in agent_result.get("agent_warnings", []):
+            agent_warnings = agent_result.get("agent_warnings", [])
+            for w in agent_warnings:
                 warnings.append(w)
+            log.info("agent_complete", extra={
+                "engine_id": reading.engine_id,
+                "cycle": reading.cycle,
+                "regime": agent_result.get("regime"),
+                "has_explanation": bool(llm_explanation),
+                "agent_warnings": agent_warnings,
+            })
         except Exception as exc:
             warnings.append(
                 f"Agent unavailable (pre-agent decision kept): {str(exc)[:80]}"
             )
+            log.warning("agent_failed", extra={
+                "engine_id": reading.engine_id,
+                "cycle": reading.cycle,
+                "error": str(exc)[:120],
+            })
 
     return TelemetryWindowOut(
         id=row["id"],
@@ -325,6 +376,51 @@ def get_recent_alerts(limit: int = 20):
         raise HTTPException(status_code=500, detail=str(exc))
 
     return [AlertEventOut(**dict(row)) for row in rows]
+
+
+@app.get("/alerts/{alert_id}/explanation")
+def get_alert_explanation(alert_id: str):
+    """
+    Return the LLM explanation and regime for a given alert event,
+    sourced from the reasoning_traces rows written by the LangGraph agent.
+    Returns {} if the agent did not run (score < 0.3) or traces are absent.
+    """
+    try:
+        with engine.connect() as conn:
+            # LLM explanation lives in the llm_explainer node's output_state
+            exp_row = conn.execute(
+                select(reasoning_traces.c.output_state, reasoning_traces.c.latency_ms)
+                .where(reasoning_traces.c.alert_event_id == alert_id)
+                .where(reasoning_traces.c.node_name == "llm_explainer")
+                .order_by(reasoning_traces.c.id.desc())
+                .limit(1)
+            ).mappings().one_or_none()
+
+            regime_row = conn.execute(
+                select(reasoning_traces.c.output_state)
+                .where(reasoning_traces.c.alert_event_id == alert_id)
+                .where(reasoning_traces.c.node_name == "regime_classifier")
+                .order_by(reasoning_traces.c.id.desc())
+                .limit(1)
+            ).mappings().one_or_none()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    explanation = None
+    latency_ms = None
+    regime = None
+    if exp_row:
+        explanation = (exp_row["output_state"] or {}).get("llm_explanation")
+        latency_ms = exp_row["latency_ms"]
+    if regime_row:
+        regime = (regime_row["output_state"] or {}).get("regime")
+
+    return {
+        "alert_id": alert_id,
+        "llm_explanation": explanation,
+        "regime": regime,
+        "llm_latency_ms": latency_ms,
+    }
 
 
 @app.get("/alerts/{alert_id}/feedback", response_model=list[FeedbackOut])

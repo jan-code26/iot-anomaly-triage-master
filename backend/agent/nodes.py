@@ -15,8 +15,10 @@ affects the main /ingest response.
 """
 from __future__ import annotations
 
+import json
 import os
 import time
+from pathlib import Path
 
 from sqlalchemy import func as sa_func
 from sqlalchemy import insert, select, update
@@ -31,9 +33,29 @@ from backend.models import (
     telemetry_windows,
 )
 from backend.services.gtest_monitor import gtest_monitor
+from backend.services import regime_classifier as _regime_svc
 
 # The 5 sensors in the causal DAG — used by ingest_validator
 CAUSAL_SENSORS = {"sensor_3", "sensor_4", "sensor_9", "sensor_11", "sensor_15"}
+
+_COEFF_FILE = Path(__file__).parent.parent.parent / "data" / "processed" / "regime_coefficients.json"
+
+
+def _load_blend_alpha(is_multi_cluster: bool) -> float:
+    """
+    Load the learned blend weight α from regime_coefficients.json.
+
+    α controls:  final_score = α × causal_score + (1-α) × z_score
+    - FD001 (single condition): α = 0.70 — causal weighted higher, z-score retained
+    - FD002 (multi condition):  α = 1.00 — pure causal; z-score is harmful here
+    Falls back to 0.5 if the JSON is missing or malformed.
+    """
+    try:
+        data = json.loads(_COEFF_FILE.read_text())
+        key = "blend_alpha_fd002" if is_multi_cluster else "blend_alpha_fd001"
+        return float(data.get(key, data.get("blend_alpha", 0.5)))
+    except Exception:
+        return 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -118,19 +140,34 @@ def ingest_validator(state: dict) -> dict:
 
 def regime_classifier(state: dict) -> dict:
     """
-    Classify the operating regime.
+    Classify the operating regime using nearest-centroid assignment.
 
-    FD001 has a single operating condition so this always returns cluster_0.
-    Phase 4 will replace this with a KMeans classifier trained on FD002's
-    six op_setting clusters.
+    Uses KMeans centroids from data/processed/regime_coefficients.json
+    (trained on FD002's 6 operating conditions).  Falls back to "cluster_0"
+    (single-condition FD001 mode) if the coefficients file is absent.
     """
     t0 = time.monotonic()
-    regime = "cluster_0"
-    out = {"regime": regime}
+    reading = state.get("reading", {})
+    op1 = reading.get("op_setting_1") or 0.0
+    op2 = reading.get("op_setting_2") or 0.0
+    op3 = reading.get("op_setting_3") or 0.0
+
+    regime = _regime_svc.classify(op1, op2, op3)
+
+    out = {
+        "regime": regime,
+        "regime_multi_cluster": _regime_svc.is_multi_cluster,
+    }
     _write_trace(
         alert_event_id=state["alert_event_id"],
         node_name="regime_classifier",
-        input_snapshot={"engine_id": state.get("engine_id")},
+        input_snapshot={
+            "engine_id": state.get("engine_id"),
+            "op_setting_1": op1,
+            "op_setting_2": op2,
+            "op_setting_3": op3,
+            "n_clusters": _regime_svc.n_clusters,
+        },
         output_snapshot=out,
         latency_ms=int((time.monotonic() - t0) * 1000),
     )
@@ -143,24 +180,37 @@ def regime_classifier(state: dict) -> dict:
 
 def causal_reasoner(state: dict) -> dict:
     """
-    Pass through the pre-computed causal_score as causal_score_refined.
+    Recompute the causal score using per-cluster regime coefficients.
 
-    The score was already computed by compute_causal_score() in /ingest
-    before the agent was invoked.  In Phase 4 this node will re-run the
-    scorer with regime-specific coefficients (e.g. different linear
-    regression fits per FD002 cluster).
+    Uses the regime label assigned by regime_classifier to select the
+    appropriate LinearRegression coefficients for this operating condition.
+    On single-condition data (FD001 / cluster_0) this is equivalent to the
+    original scorer; on multi-condition data (FD002) each cluster's
+    coefficients reflect the expected sensor values for that regime.
     """
     t0 = time.monotonic()
-    causal_score_refined = state.get("causal_score", 0.0)
-    out = {"causal_score_refined": causal_score_refined}
+    reading = state.get("reading", {})
+    regime = state.get("regime", "cluster_0")
+
+    causal_score_refined, causal_details = _regime_svc.compute_causal_score(
+        reading, regime
+    )
+
+    out = {
+        "causal_score_refined": causal_score_refined,
+        "causal_details": causal_details,
+    }
     _write_trace(
         alert_event_id=state["alert_event_id"],
         node_name="causal_reasoner",
         input_snapshot={
-            "causal_score": state.get("causal_score"),
-            "regime": state.get("regime"),
+            "causal_score_pre": state.get("causal_score"),
+            "regime": regime,
         },
-        output_snapshot=out,
+        output_snapshot={
+            "causal_score_refined": causal_score_refined,
+            "top_sensors": sorted(causal_details.items(), key=lambda kv: kv[1], reverse=True)[:3],
+        },
         latency_ms=int((time.monotonic() - t0) * 1000),
     )
     return out
@@ -170,9 +220,31 @@ def causal_reasoner(state: dict) -> dict:
 # Node 4: physics_veto
 # ---------------------------------------------------------------------------
 
+_CHI2_CRITICAL = 26.30   # df=16, α=0.05 — same critical value used by gtest_monitor
+
+
+def _veto_factor(chi2_stat: float) -> float:
+    """
+    Graduated veto multiplier based on the actual G-test χ² value.
+
+    Formula:  veto_factor = 1.0 - 0.5 × min(chi2_stat / CHI2_CRITICAL, 1.0)
+
+    Behaviour:
+        chi2 = 0               → veto_factor = 1.00  (no penalty)
+        chi2 = CHI2_CRITICAL/2 → veto_factor = 0.75  (25% reduction)
+        chi2 = CHI2_CRITICAL   → veto_factor = 0.50  (50% reduction, same as old binary)
+        chi2 > CHI2_CRITICAL   → veto_factor = 0.50  (clamped — no stronger than 50%)
+
+    The veto is applied to ALL causal scores, removing the old >= 0.5 gate
+    that prevented vetoing moderately anomalous readings.
+    """
+    return 1.0 - 0.5 * min(chi2_stat / _CHI2_CRITICAL, 1.0)
+
+
 def physics_veto(state: dict) -> dict:
     """
-    Apply a physics-based veto if the sensor_11/sensor_15 coupling is broken.
+    Apply a graduated physics-based veto if the sensor_11/sensor_15 coupling
+    is degraded or broken.
 
     The G-test (computed by gtest_monitor) checks whether sensor_11 (HPC
     outlet temp) and sensor_15 (HPC outlet pressure) are still correlated.
@@ -192,11 +264,15 @@ def physics_veto(state: dict) -> dict:
     physics_veto_applied = False
 
     buffer_full = gtest_monitor.should_run(engine_id)
+    g_stat = None
+    is_decorrelated = False
     if buffer_full:
-        _g_stat, is_decorrelated = gtest_monitor.run_gtest(engine_id)
-        if is_decorrelated and causal_score_refined >= 0.5:
-            causal_score_refined = round(causal_score_refined * 0.5, 6)
-            physics_veto_applied = True
+        g_stat, is_decorrelated = gtest_monitor.run_gtest(engine_id)
+        if g_stat is not None:
+            factor = _veto_factor(g_stat)
+            if factor < 1.0:
+                causal_score_refined = round(causal_score_refined * factor, 6)
+                physics_veto_applied = (factor < 0.95)   # log if non-trivial
 
     out = {
         "causal_score_refined": causal_score_refined,
@@ -209,6 +285,8 @@ def physics_veto(state: dict) -> dict:
             "engine_id": engine_id,
             "causal_score_refined_in": state.get("causal_score_refined"),
             "buffer_full": buffer_full,
+            "g_stat": g_stat,
+            "is_decorrelated": is_decorrelated,
         },
         output_snapshot=out,
         latency_ms=int((time.monotonic() - t0) * 1000),
@@ -422,7 +500,10 @@ def decision_writer(state: dict) -> dict:
     Compute the final blended score, apply the cache penalty to confidence,
     and UPDATE the alert_events row with the refined values.
 
-    final_score = round(0.5 * z_score + 0.5 * causal_score_refined, 6)
+    final_score = α × causal_score_refined + (1-α) × z_score
+    where α is loaded from regime_coefficients.json:
+        FD001 (single condition): α = 0.70
+        FD002 (multi  condition): α = 1.00 (pure causal; z-score is harmful)
 
     If cache_penalty < 1.0 (operator marked ≥ 2 prior readings FALSE_POSITIVE),
     the confidence is reduced by that factor.
@@ -437,8 +518,12 @@ def decision_writer(state: dict) -> dict:
     from_cache = state.get("from_cache", False)
     alert_event_id = state["alert_event_id"]
 
-    final_score = round(0.5 * z_score + 0.5 * causal_score_refined, 6)
-    final_decision, final_confidence = make_decision(final_score)
+    alpha = _load_blend_alpha(is_multi_cluster=_regime_svc.is_multi_cluster)
+    final_score = round(alpha * causal_score_refined + (1 - alpha) * z_score, 6)
+    # Use per-regime calibrated threshold when available (falls back to 0.3)
+    cluster_label = state.get("cluster_label", "cluster_0")
+    threshold = _regime_svc.get_alert_threshold(cluster_label)
+    final_decision, final_confidence = make_decision(final_score, threshold=threshold)
 
     if cache_penalty < 1.0:
         final_confidence = round(final_confidence * cache_penalty, 4)
