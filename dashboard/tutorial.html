@@ -596,7 +596,7 @@
 
 <!-- TOP BAR -->
 <div id="top-bar">
-  <a href="showcase.html">&#8592; Showcase</a>
+  <a href="/showcase">&#8592; Showcase</a>
   <span class="sep">/</span>
   <span class="title">Pipeline Walkthrough</span>
   <span class="spacer"></span>
@@ -1180,8 +1180,8 @@ const STEPS = [
       </div>
 
       <div style="display:flex; gap:12px; margin-top:28px; flex-wrap:wrap;">
-        <a href="index.html" style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;font-size:14px;transition:opacity 0.15s;">Try Live Dashboard &#8594;</a>
-        <a href="showcase.html#results" style="display:inline-flex;align-items:center;gap:8px;background:transparent;color:var(--muted);text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:500;font-size:14px;border:1px solid var(--border);transition:color 0.15s;">See Full Results &#8594;</a>
+        <a href="/" style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;font-size:14px;transition:opacity 0.15s;">Try Live Dashboard &#8594;</a>
+        <a href="/showcase#results" style="display:inline-flex;align-items:center;gap:8px;background:transparent;color:var(--muted);text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:500;font-size:14px;border:1px solid var(--border);transition:color 0.15s;">See Full Results &#8594;</a>
       </div>
     `,
     onEnter: () => setTimeout(() => animateCounter('impact-counter', 177, 1400), 300)
@@ -1233,7 +1233,7 @@ function updateNav(n) {
   const btnNext = document.getElementById('btn-next');
   if (n === 7) {
     btnNext.textContent = '✓ Done';
-    btnNext.onclick = () => { window.location.href = 'showcase.html'; };
+    btnNext.onclick = () => { window.location.href = '/showcase'; };
   } else {
     btnNext.textContent = 'Next →';
     btnNext.onclick = nextStep;

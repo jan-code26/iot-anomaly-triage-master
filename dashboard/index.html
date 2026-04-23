@@ -37,41 +37,52 @@
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
+      padding: 0 20px;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 0;
       flex-shrink: 0;
+      height: 48px;
     }
-    header h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
-    header h1 span { color: var(--accent); }
+    .header-brand {
+      display: flex; align-items: center; gap: 12px;
+      padding-right: 20px;
+      border-right: 1px solid var(--border);
+    }
+    .header-brand h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .header-brand h1 span { color: var(--accent); }
 
-    .url-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-      max-width: 420px;
+    nav { display: flex; align-items: stretch; gap: 0; margin-left: 4px; }
+    nav a {
+      display: flex; align-items: center;
+      padding: 0 16px; height: 48px;
+      font-size: 13px; color: var(--muted);
+      text-decoration: none; white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s;
     }
-    .url-bar label { color: var(--muted); white-space: nowrap; font-size: 12px; }
-    .url-bar input, .url-bar select {
-      flex: 1;
+    nav a:hover { color: var(--text); }
+    nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .header-right {
+      display: flex; align-items: center; gap: 10px; margin-left: auto;
+    }
+    .env-select {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 5px 10px;
+      padding: 4px 8px;
       color: var(--text);
-      font-size: 13px;
+      font-size: 12px;
+      cursor: pointer;
     }
-
-    .header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
     #status-dot {
       width: 8px; height: 8px; border-radius: 50%;
       background: var(--muted); flex-shrink: 0;
     }
-    #status-dot.ok { background: var(--green); }
+    #status-dot.ok  { background: var(--green); }
     #status-dot.err { background: var(--red); }
-    #status-text { font-size: 12px; color: var(--muted); }
+    #status-text { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
     button.btn {
       background: var(--accent);
@@ -95,9 +106,9 @@
 
     /* ── Auto-refresh ── */
     .refresh-row {
-      display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted);
     }
-    .refresh-row input[type=range] { width: 80px; accent-color: var(--accent); }
+    .refresh-row input[type=range] { width: 70px; accent-color: var(--accent); }
     .refresh-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
     .refresh-row input[type=checkbox] { accent-color: var(--accent); }
 
@@ -268,21 +279,25 @@
 
 <!-- ── Header ── -->
 <header>
-  <h1>🛩️ <span>IoT</span> Anomaly Triage</h1>
-  <div class="url-bar">
-    <label>Backend</label>
-    <select id="env-select" onchange="onEnvChange()">
+  <div class="header-brand">
+    <h1>🛩️ <span>IoT</span> Anomaly Triage</h1>
+  </div>
+  <nav>
+    <a href="/" class="active">Dashboard</a>
+    <a href="/showcase">Showcase</a>
+    <a href="/tutorial">Tutorial</a>
+  </nav>
+  <div class="header-right">
+    <select id="env-select" class="env-select" onchange="onEnvChange()">
       <option value="https://iot-anomaly-triage-master.onrender.com" selected>Production</option>
       <option value="http://localhost:8000">Local Dev</option>
     </select>
     <input id="backend-url" type="text" value="https://iot-anomaly-triage-master.onrender.com" style="display:none" />
-  </div>
-  <div class="refresh-row">
-    <label><input id="auto-refresh-toggle" type="checkbox" /> Auto</label>
-    <input id="refresh-interval" type="range" min="5" max="60" value="10" step="5" />
-    <span id="interval-label">10s</span>
-  </div>
-  <div class="header-right">
+    <div class="refresh-row">
+      <label><input id="auto-refresh-toggle" type="checkbox" /> Auto</label>
+      <input id="refresh-interval" type="range" min="5" max="60" value="10" step="5" />
+      <span id="interval-label">10s</span>
+    </div>
     <div id="status-dot"></div>
     <span id="status-text">—</span>
     <button class="btn secondary" onclick="loadAlerts()">↺ Refresh</button>
@@ -398,13 +413,13 @@ function shortId(id) {
 // ── Health check ────────────────────────────────────────
 async function checkHealth() {
   try {
-    const h = await get('/health');
+    await get('/health');
     $('status-dot').className = 'ok';
-    $('status-text').textContent = h.message || 'connected';
+    $('status-text').textContent = 'connected';
     return true;
   } catch {
     $('status-dot').className = 'err';
-    $('status-text').textContent = 'backend unreachable';
+    $('status-text').textContent = 'offline';
     return false;
   }
 }
