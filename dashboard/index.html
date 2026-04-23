@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IoT Anomaly Triage</title>
+  <title>IoT Anomaly Triage — Live Dashboard</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       --bg: #0f1117;
       --surface: #1a1d27;
+      --surface2: #21253a;
       --border: #2a2d3a;
       --text: #e2e8f0;
       --muted: #8892a4;
@@ -17,9 +18,11 @@
       --red: #f56565;
       --yellow: #ecc94b;
       --green: #48bb78;
-      --red-bg: rgba(245,101,101,0.12);
-      --yellow-bg: rgba(236,201,75,0.10);
+      --purple: #9f7aea;
+      --red-bg: rgba(245,101,101,0.10);
+      --yellow-bg: rgba(236,201,75,0.08);
       --green-bg: rgba(72,187,120,0.10);
+      --purple-bg: rgba(159,122,234,0.10);
     }
 
     body {
@@ -33,26 +36,27 @@
       overflow: hidden;
     }
 
-    /* ── Header ── */
+    /* ── HEADER ── */
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 0 20px;
       display: flex;
       align-items: center;
-      gap: 0;
-      flex-shrink: 0;
       height: 48px;
+      flex-shrink: 0;
+      gap: 0;
     }
     .header-brand {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center;
       padding-right: 20px;
       border-right: 1px solid var(--border);
+      white-space: nowrap;
     }
-    .header-brand h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .header-brand h1 { font-size: 15px; font-weight: 600; }
     .header-brand h1 span { color: var(--accent); }
 
-    nav { display: flex; align-items: stretch; gap: 0; margin-left: 4px; }
+    nav { display: flex; align-items: stretch; }
     nav a {
       display: flex; align-items: center;
       padding: 0 16px; height: 48px;
@@ -68,13 +72,9 @@
       display: flex; align-items: center; gap: 10px; margin-left: auto;
     }
     .env-select {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 8px;
-      color: var(--text);
-      font-size: 12px;
-      cursor: pointer;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 8px;
+      color: var(--text); font-size: 12px; cursor: pointer;
     }
     #status-dot {
       width: 8px; height: 8px; border-radius: 50%;
@@ -84,200 +84,285 @@
     #status-dot.err { background: var(--red); }
     #status-text { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
-    button.btn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 6px 14px;
-      font-size: 13px;
-      cursor: pointer;
-      white-space: nowrap;
+    .btn {
+      border: none; border-radius: 6px;
+      padding: 6px 14px; font-size: 13px;
+      cursor: pointer; white-space: nowrap; font-weight: 500;
     }
-    button.btn:hover { opacity: 0.85; }
-    button.btn.secondary {
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { background: var(--surface2); }
+    .btn-demo { background: linear-gradient(135deg, #4f8ef7, #9f7aea); color: #fff; }
+    .btn-demo:hover { opacity: 0.9; }
+    .btn-demo.running { background: var(--red); }
+    .btn-ok     { background: #276749; color: #fff; }
+    .btn-danger { background: #c53030; color: #fff; }
+    .btn-warn   { background: #b7791f; color: #fff; }
+
+    /* ── FLEET BAR ── */
+    .fleet-bar {
       background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: stretch;
+      flex-shrink: 0;
+      height: 64px;
     }
-    button.btn.danger { background: #c53030; }
-    button.btn.warn   { background: #b7791f; }
-    button.btn.ok     { background: #276749; }
-
-    /* ── Auto-refresh ── */
-    .refresh-row {
-      display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted);
+    .fleet-stat {
+      flex: 1; display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      border-right: 1px solid var(--border);
+      gap: 2px; padding: 0 8px;
     }
-    .refresh-row input[type=range] { width: 70px; accent-color: var(--accent); }
-    .refresh-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-    .refresh-row input[type=checkbox] { accent-color: var(--accent); }
+    .fleet-stat:last-child { border-right: none; }
+    .fleet-stat-value { font-size: 22px; font-weight: 700; }
+    .fleet-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+    .v-total   { color: var(--accent); }
+    .v-alert   { color: var(--red); }
+    .v-monitor { color: var(--yellow); }
+    .v-normal  { color: var(--green); }
+    .v-muted   { color: var(--muted); }
 
-    /* ── Main layout ── */
+    /* ── DEMO BANNER ── */
+    #demo-banner {
+      display: none;
+      background: linear-gradient(90deg, rgba(79,142,247,0.15), rgba(159,122,234,0.15));
+      border-bottom: 1px solid rgba(79,142,247,0.3);
+      padding: 8px 20px;
+      font-size: 12px; color: var(--accent);
+      flex-shrink: 0;
+      align-items: center; gap: 12px;
+    }
+    #demo-banner.visible { display: flex; }
+    .demo-progress-track {
+      flex: 1; max-width: 300px; height: 4px;
+      background: rgba(79,142,247,0.2); border-radius: 2px; overflow: hidden;
+    }
+    .demo-progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; border-radius: 2px; }
+
+    /* ── MAIN LAYOUT ── */
     .main {
       display: grid;
-      grid-template-columns: 1fr 380px;
+      grid-template-columns: 320px 1fr;
       grid-template-rows: 1fr auto;
       flex: 1;
       overflow: hidden;
-      gap: 0;
     }
 
-    /* ── Panel ── */
-    .panel {
+    /* ── ENGINE QUEUE (left) ── */
+    .queue-panel {
       border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+      display: flex; flex-direction: column; overflow: hidden;
     }
     .panel-header {
-      padding: 10px 16px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-      font-weight: 600;
-      font-size: 13px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0; font-weight: 600; font-size: 13px;
     }
-    .panel-body { flex: 1; overflow-y: auto; }
+    .panel-header-right { display: flex; align-items: center; gap: 6px; }
+    .queue-body { flex: 1; overflow-y: auto; }
 
-    /* ── Alert table ── */
-    table { width: 100%; border-collapse: collapse; }
-    thead th {
-      position: sticky; top: 0;
-      background: var(--surface);
-      padding: 8px 12px;
-      text-align: left;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-    }
-    tbody tr {
+    .engine-card {
+      padding: 12px 14px;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
       transition: background 0.1s;
     }
-    tbody tr:hover { background: rgba(255,255,255,0.04); }
-    tbody tr.selected { background: rgba(79,142,247,0.12); }
-    tbody tr.alert-red   { background: var(--red-bg); }
-    tbody tr.alert-red.selected   { background: rgba(245,101,101,0.22); }
-    tbody tr.alert-yellow { background: var(--yellow-bg); }
-    tbody tr.alert-yellow.selected { background: rgba(236,201,75,0.20); }
-    tbody td { padding: 8px 12px; font-size: 13px; }
+    .engine-card:hover { background: rgba(255,255,255,0.03); }
+    .engine-card.selected { background: rgba(79,142,247,0.08); border-left: 3px solid var(--accent); }
+    .engine-card.risk-high { border-left: 3px solid var(--red); }
+    .engine-card.risk-high.selected { border-left-color: var(--accent); }
+    .engine-card.risk-monitor { border-left: 3px solid var(--yellow); }
+    .engine-card.risk-monitor.selected { border-left-color: var(--accent); }
+    .engine-card.risk-normal { border-left: 3px solid transparent; }
 
-    .badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600;
+    .engine-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
     }
-    .badge.red    { background: var(--red-bg);    color: var(--red); }
-    .badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
-    .badge.green  { background: var(--green-bg);  color: var(--green); }
-    .badge.muted  { background: rgba(136,146,164,0.12); color: var(--muted); }
+    .engine-name { font-size: 14px; font-weight: 600; }
+    .engine-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .badge-alert   { background: var(--red-bg);    color: var(--red); }
+    .badge-monitor { background: var(--yellow-bg); color: var(--yellow); }
+    .badge-normal  { background: var(--green-bg);  color: var(--green); }
+    .badge-muted   { background: rgba(136,146,164,0.12); color: var(--muted); }
 
-    /* ── Metrics strip ── */
-    .metrics {
-      display: flex; gap: 0;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+    .score-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .score-bar-track {
+      flex: 1; height: 5px; border-radius: 3px;
+      background: var(--border); overflow: hidden;
     }
-    .metric {
-      flex: 1; padding: 10px 12px; border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 2px;
-    }
-    .metric:last-child { border-right: none; }
-    .metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    .metric-value { font-size: 20px; font-weight: 700; }
-    .metric-value.red    { color: var(--red); }
-    .metric-value.yellow { color: var(--yellow); }
-    .metric-value.green  { color: var(--green); }
-    .metric-value.accent { color: var(--accent); }
+    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .score-val { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; }
 
-    /* ── Detail panel ── */
-    .detail-panel {
-      display: flex; flex-direction: column; overflow: hidden;
+    .engine-meta {
+      display: flex; gap: 10px; font-size: 11px; color: var(--muted);
     }
-    .detail-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .engine-meta span { display: flex; align-items: center; gap: 3px; }
+
+    .queue-empty {
+      padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7;
+    }
+
+    /* ── DETAIL PANEL (right) ── */
+    .detail-panel { display: flex; flex-direction: column; overflow: hidden; }
+    .detail-body  { flex: 1; overflow-y: auto; padding: 20px; }
     .detail-empty {
-      display: flex; align-items: center; justify-content: center;
-      height: 100%; color: var(--muted); font-size: 13px; text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%;
+      color: var(--muted); font-size: 13px; text-align: center; gap: 12px;
+    }
+    .detail-empty .hint { font-size: 12px; opacity: 0.6; }
+
+    /* Detail sections */
+    .detail-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; margin-bottom: 20px;
+    }
+    .detail-engine-name { font-size: 22px; font-weight: 700; }
+    .detail-header-right { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+    .score-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 20px;
+    }
+    .score-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px;
+    }
+    .score-card-label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px;
+    }
+    .score-card-value { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .score-card-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
+    .score-card-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .score-card-sub { font-size: 11px; color: var(--muted); }
+
+    .rul-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px;
+    }
+    .rul-value { font-size: 28px; font-weight: 700; color: var(--yellow); margin-bottom: 2px; }
+    .rul-label { font-size: 11px; color: var(--muted); }
+
+    /* Section headers */
+    .section { margin-bottom: 20px; }
+    .section-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
     }
 
-    .score-bar-wrap { margin: 12px 0; }
-    .score-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-    .score-bar-track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
-    .score-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.3s; }
+    /* Baseline comparison */
+    .baseline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .baseline-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px;
+    }
+    .baseline-card.missed { border-color: rgba(245,101,101,0.3); }
+    .baseline-card.caught { border-color: rgba(72,187,120,0.3); }
+    .baseline-system { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .baseline-verdict { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .baseline-score { font-size: 12px; color: var(--muted); }
+    .baseline-why {
+      margin-top: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+      font-size: 12px; color: var(--muted); line-height: 1.6;
+    }
 
-    .detail-section { margin-bottom: 20px; }
-    .detail-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+    /* Pipeline trace */
+    .trace-list { display: flex; flex-direction: column; gap: 6px; }
+    .trace-node {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .trace-node.active { border-color: rgba(79,142,247,0.4); }
+    .trace-icon {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; flex-shrink: 0;
+      background: var(--border);
+    }
+    .trace-icon.done { background: rgba(72,187,120,0.2); color: var(--green); }
+    .trace-icon.veto { background: rgba(245,101,101,0.2); color: var(--red); }
+    .trace-body { flex: 1; min-width: 0; }
+    .trace-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .trace-detail { font-size: 11px; color: var(--muted); }
+    .trace-latency { font-size: 10px; color: var(--muted); margin-left: auto; flex-shrink: 0; }
 
+    /* LLM explanation */
     .explanation-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 13px;
-      line-height: 1.6;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px;
+      font-size: 13px; line-height: 1.7; color: var(--text);
     }
     .explanation-box.empty { color: var(--muted); font-style: italic; }
 
-    .kv-grid { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; }
-    .kv-key { color: var(--muted); font-size: 12px; }
-    .kv-val { font-size: 12px; font-weight: 500; word-break: break-all; }
-
-    .feedback-row { display: flex; gap: 8px; margin-top: 8px; }
-    .feedback-row button { flex: 1; padding: 8px; font-size: 12px; }
-
-    .prior-feedback { margin-top: 8px; }
+    /* Feedback */
+    .feedback-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .feedback-row .btn { flex: 1; padding: 9px; font-size: 12px; min-width: 100px; }
+    .feedback-success {
+      padding: 10px 14px; border-radius: 8px;
+      background: var(--green-bg); color: var(--green);
+      font-size: 13px; font-weight: 600;
+    }
+    .prior-feedback { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
     .prior-item {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 5px 8px; border-radius: 4px; background: var(--surface);
-      margin-bottom: 4px; font-size: 12px;
+      padding: 5px 10px; border-radius: 5px; background: var(--surface);
+      font-size: 12px;
     }
     .prior-item .time { color: var(--muted); font-size: 11px; }
 
-    .feedback-success {
-      padding: 10px 12px; border-radius: 8px; background: var(--green-bg);
-      color: var(--green); font-size: 13px; font-weight: 600; text-align: center;
-    }
-
-    /* ── PSI strip ── */
+    /* PSI strip */
     .psi-strip {
       border-top: 1px solid var(--border);
       grid-column: 1 / -1;
+      background: var(--surface);
       overflow: hidden;
     }
     .psi-header {
       padding: 8px 16px; display: flex; align-items: center; gap: 10px;
       cursor: pointer; font-size: 12px; font-weight: 600;
-      border-bottom: 1px solid transparent;
       user-select: none;
     }
-    .psi-header:hover { background: rgba(255,255,255,0.03); }
-    .psi-header.open { border-bottom-color: var(--border); }
-    .psi-body { display: none; padding: 10px 16px; overflow-x: auto; }
-    .psi-body.open { display: flex; gap: 10px; flex-wrap: wrap; }
-
+    .psi-header:hover { background: rgba(255,255,255,0.02); }
+    .psi-body {
+      padding: 8px 16px 10px;
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
     .psi-chip {
       padding: 5px 10px; border-radius: 6px; font-size: 11px;
-      border: 1px solid var(--border); background: var(--surface);
-      display: flex; flex-direction: column; gap: 2px; min-width: 90px;
+      border: 1px solid var(--border); background: var(--bg);
+      display: flex; flex-direction: column; gap: 1px; min-width: 80px;
     }
-    .psi-chip .psi-name { font-weight: 600; color: var(--text); }
+    .psi-chip .psi-name { font-weight: 600; }
     .psi-chip .psi-val  { color: var(--muted); }
-    .psi-chip.stable  { border-color: rgba(72,187,120,0.3); }
-    .psi-chip.moderate { border-color: rgba(236,201,75,0.3); }
+    .psi-chip.stable          { border-color: rgba(72,187,120,0.3); }
+    .psi-chip.moderate        { border-color: rgba(236,201,75,0.3); }
     .psi-chip.action_required { border-color: rgba(245,101,101,0.3); }
 
     .spinner { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; }
     .err-msg { color: var(--red); font-size: 12px; padding: 12px; }
+
+    /* kv grid */
+    .kv-grid { display: grid; grid-template-columns: 130px 1fr; gap: 5px 10px; }
+    .kv-key { font-size: 12px; color: var(--muted); }
+    .kv-val { font-size: 12px; font-weight: 500; word-break: break-all; }
   </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
+<!-- ── HEADER ── -->
 <header>
   <div class="header-brand">
     <h1>🛩️ <span>IoT</span> Anomaly Triage</h1>
@@ -288,71 +373,102 @@
     <a href="/tutorial">Tutorial</a>
   </nav>
   <div class="header-right">
+    <button class="btn btn-demo" id="demo-btn" onclick="toggleDemo()">▶ Run Demo</button>
     <select id="env-select" class="env-select" onchange="onEnvChange()">
       <option value="https://iot-anomaly-triage-master.onrender.com" selected>Production</option>
       <option value="http://localhost:8000">Local Dev</option>
     </select>
-    <input id="backend-url" type="text" value="https://iot-anomaly-triage-master.onrender.com" style="display:none" />
-    <div class="refresh-row">
-      <label><input id="auto-refresh-toggle" type="checkbox" /> Auto</label>
-      <input id="refresh-interval" type="range" min="5" max="60" value="10" step="5" />
-      <span id="interval-label">10s</span>
-    </div>
     <div id="status-dot"></div>
     <span id="status-text">—</span>
-    <button class="btn secondary" onclick="loadAlerts()">↺ Refresh</button>
+    <button class="btn btn-secondary" onclick="loadEngines()">↺</button>
   </div>
 </header>
 
-<!-- ── Main ── -->
+<!-- ── FLEET BAR ── -->
+<div class="fleet-bar">
+  <div class="fleet-stat">
+    <div class="fleet-stat-value v-total" id="fs-total">—</div>
+    <div class="fleet-stat-label">Engines</div>
+  </div>
+  <div class="fleet-stat">
+    <div class="fleet-stat-value v-alert" id="fs-alert">—</div>
+    <div class="fleet-stat-label">🔴 High Risk</div>
+  </div>
+  <div class="fleet-stat">
+    <div class="fleet-stat-value v-monitor" id="fs-monitor">—</div>
+    <div class="fleet-stat-label">🟡 Monitoring</div>
+  </div>
+  <div class="fleet-stat">
+    <div class="fleet-stat-value v-normal" id="fs-normal">—</div>
+    <div class="fleet-stat-label">🟢 Normal</div>
+  </div>
+  <div class="fleet-stat">
+    <div class="fleet-stat-value v-muted" id="fs-precision">—</div>
+    <div class="fleet-stat-label">Avg Confidence</div>
+  </div>
+</div>
+
+<!-- ── DEMO BANNER ── -->
+<div id="demo-banner">
+  <span id="demo-status">⚡ Demo running…</span>
+  <div class="demo-progress-track">
+    <div class="demo-progress-fill" id="demo-progress" style="width:0%"></div>
+  </div>
+  <span id="demo-detail" style="color:var(--muted);font-size:11px"></span>
+</div>
+
+<!-- ── MAIN ── -->
 <div class="main">
 
-  <!-- Left: Alert Feed -->
-  <div class="panel" id="feed-panel">
+  <!-- LEFT: Engine Queue -->
+  <div class="queue-panel">
     <div class="panel-header">
-      📋 Live Alert Feed
-      <span id="alert-count" style="color:var(--muted);font-weight:400;font-size:12px;margin-left:4px;"></span>
+      Fleet Triage Queue
+      <div class="panel-header-right">
+        <span id="engine-count" style="color:var(--muted);font-size:12px;font-weight:400"></span>
+      </div>
     </div>
-    <!-- Metrics strip -->
-    <div class="metrics">
-      <div class="metric"><div class="metric-label">Total</div><div class="metric-value accent" id="m-total">—</div></div>
-      <div class="metric"><div class="metric-label">🔴 Alert</div><div class="metric-value red" id="m-alert">—</div></div>
-      <div class="metric"><div class="metric-label">🟡 Uncertain</div><div class="metric-value yellow" id="m-uncertain">—</div></div>
-      <div class="metric"><div class="metric-label">🟢 FP</div><div class="metric-value green" id="m-fp">—</div></div>
-    </div>
-    <div class="panel-body">
-      <div id="feed-content"><div class="spinner">Loading alerts…</div></div>
+    <div class="queue-body" id="queue-body">
+      <div class="queue-empty">
+        No engines yet.<br>
+        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to stream live CMAPSS data,<br>or POST readings to <code>/ingest</code>.</span>
+      </div>
     </div>
   </div>
 
-  <!-- Right: Alert Detail -->
-  <div class="detail-panel" id="detail-panel">
-    <div class="panel-header">🔍 Alert Detail</div>
-    <div class="detail-body">
+  <!-- RIGHT: Engine Detail -->
+  <div class="detail-panel">
+    <div class="panel-header">Engine Detail</div>
+    <div class="detail-body" id="detail-body">
       <div class="detail-empty" id="detail-empty">
-        ← Select an alert to inspect it
+        <div>← Select an engine to inspect it</div>
+        <div class="hint">Click any engine in the queue to see<br>its score breakdown, pipeline trace, and LLM explanation</div>
       </div>
       <div id="detail-content" style="display:none"></div>
     </div>
   </div>
 
-  <!-- Bottom: PSI strip -->
+  <!-- BOTTOM: PSI Strip -->
   <div class="psi-strip">
-    <div class="psi-header" id="psi-header" onclick="togglePsi()">
-      📊 Sensor Health (PSI) <span id="psi-toggle-icon">▶</span>
-      <span id="psi-summary" style="color:var(--muted);font-weight:400;margin-left:8px;font-size:11px;"></span>
+    <div class="psi-header" onclick="togglePsi()">
+      📊 Sensor Drift (PSI)
+      <span id="psi-toggle">▶</span>
+      <span id="psi-summary" style="color:var(--muted);font-weight:400;margin-left:6px;font-size:11px"></span>
     </div>
-    <div class="psi-body" id="psi-body"></div>
+    <div id="psi-body" style="display:none"></div>
   </div>
 
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────
-let selectedAlertId = null;
-let alerts = [];
-let autoRefreshTimer = null;
+// ── State ────────────────────────────────────────────────────────────
+let selectedEngineId = null;
+let engines = [];          // EngineSummaryOut[]
+let engineAlerts = {};     // engineId → latest AlertEventOut
 let feedbackSubmitted = {};
+let autoRefreshTimer = null;
+let demoRunning = false;
+let demoAbort = null;
 
 const $ = id => document.getElementById(id);
 
@@ -360,11 +476,7 @@ function backend() {
   return $('env-select').value.replace(/\/$/, '');
 }
 
-function onEnvChange() {
-  loadAlerts();
-}
-
-// ── API helpers ─────────────────────────────────────────
+// ── API ──────────────────────────────────────────────────────────────
 async function get(path) {
   const r = await fetch(backend() + path);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
@@ -381,36 +493,7 @@ async function post(path, body) {
   return r.json();
 }
 
-// ── Decision helpers ────────────────────────────────────
-function decisionClass(decision, score) {
-  if (score >= 0.6 || decision === 'ALERT' || decision === 'TRUE_POSITIVE') return 'red';
-  if (score >= 0.3 || decision === 'UNCERTAIN') return 'yellow';
-  if (decision === 'FALSE_POSITIVE') return 'green';
-  return 'muted';
-}
-
-function decisionLabel(decision) {
-  const icons = { ALERT: '🔴', TRUE_POSITIVE: '🔴', FALSE_POSITIVE: '🟢', UNCERTAIN: '🟡', NORMAL: '⚪' };
-  return `${icons[decision] || '⚪'} ${decision}`;
-}
-
-function scoreColor(score) {
-  if (score >= 0.6) return '#f56565';
-  if (score >= 0.3) return '#ecc94b';
-  return '#48bb78';
-}
-
-function fmt(dt) {
-  if (!dt) return '—';
-  const d = new Date(dt);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function shortId(id) {
-  return id ? id.slice(0, 8) + '…' : '—';
-}
-
-// ── Health check ────────────────────────────────────────
+// ── Health ───────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
     await get('/health');
@@ -424,167 +507,376 @@ async function checkHealth() {
   }
 }
 
-// ── Load alerts ─────────────────────────────────────────
-async function loadAlerts() {
+// ── Risk helpers ─────────────────────────────────────────────────────
+function riskClass(score, decision) {
+  if (score >= 0.6 || decision === 'ALERT' || decision === 'TRUE_POSITIVE') return 'alert';
+  if (score >= 0.3 || decision === 'UNCERTAIN') return 'monitor';
+  return 'normal';
+}
+
+function riskColor(cls) {
+  return cls === 'alert' ? 'var(--red)' : cls === 'monitor' ? 'var(--yellow)' : 'var(--green)';
+}
+
+function riskLabel(cls) {
+  return cls === 'alert' ? '🔴 High Risk' : cls === 'monitor' ? '🟡 Monitor' : '🟢 Normal';
+}
+
+function badgeClass(cls) {
+  return cls === 'alert' ? 'badge-alert' : cls === 'monitor' ? 'badge-monitor' : 'badge-normal';
+}
+
+function fmt(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── Fleet bar ────────────────────────────────────────────────────────
+function updateFleetBar() {
+  const total = engines.length;
+  const nAlert   = engines.filter(e => riskClass(e.latest_score, e.latest_decision) === 'alert').length;
+  const nMonitor = engines.filter(e => riskClass(e.latest_score, e.latest_decision) === 'monitor').length;
+  const nNormal  = engines.filter(e => riskClass(e.latest_score, e.latest_decision) === 'normal').length;
+  const avgConf  = total ? (engines.reduce((s,e) => s + e.latest_confidence, 0) / total * 100).toFixed(0) + '%' : '—';
+
+  $('fs-total').textContent   = total || '—';
+  $('fs-alert').textContent   = nAlert || '0';
+  $('fs-monitor').textContent = nMonitor || '0';
+  $('fs-normal').textContent  = nNormal || '0';
+  $('fs-precision').textContent = avgConf;
+  $('engine-count').textContent = total ? `(${total})` : '';
+}
+
+// ── Load engines ─────────────────────────────────────────────────────
+async function loadEngines() {
   const ok = await checkHealth();
-  if (!ok) {
-    $('feed-content').innerHTML = '<div class="err-msg">⚠ Cannot reach backend — is uvicorn running?</div>';
-    return;
-  }
+  if (!ok) return;
+
   try {
-    alerts = await get('/alerts/recent?limit=50');
-    renderFeed();
+    engines = await get('/engines/summary');
+    renderQueue();
+    updateFleetBar();
     loadPsi();
+
+    // If an engine is selected, refresh its detail
+    if (selectedEngineId !== null) {
+      const eng = engines.find(e => e.engine_id === selectedEngineId);
+      if (eng) loadEngineDetail(selectedEngineId, eng.latest_score, eng.latest_decision);
+    }
   } catch (e) {
-    $('feed-content').innerHTML = `<div class="err-msg">Error loading alerts: ${e.message}</div>`;
+    // No engines yet — that's fine
   }
 }
 
-// ── Render feed ─────────────────────────────────────────
-function renderFeed() {
-  const n = alerts.length;
-  const nAlert = alerts.filter(a => ['ALERT','TRUE_POSITIVE'].includes(a.decision)).length;
-  const nUncertain = alerts.filter(a => a.decision === 'UNCERTAIN').length;
-  const nFp = alerts.filter(a => a.decision === 'FALSE_POSITIVE').length;
-
-  $('m-total').textContent = n;
-  $('m-alert').textContent = nAlert;
-  $('m-uncertain').textContent = nUncertain;
-  $('m-fp').textContent = nFp;
-  $('alert-count').textContent = `(${n})`;
-
-  if (n === 0) {
-    $('feed-content').innerHTML = '<div class="spinner">No alerts yet. POST to /ingest to generate some.</div>';
+// ── Render queue ─────────────────────────────────────────────────────
+function renderQueue() {
+  if (!engines.length) {
+    $('queue-body').innerHTML = `
+      <div class="queue-empty">
+        No engines yet.<br>
+        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to stream live CMAPSS data,<br>or POST readings to <code>/ingest</code>.</span>
+      </div>`;
     return;
   }
 
-  const rows = alerts.map(a => {
-    const cls = decisionClass(a.decision, a.anomaly_score);
-    const sel = a.id === selectedAlertId ? ' selected' : '';
-    return `<tr class="alert-${cls}${sel}" onclick="selectAlert('${a.id}')">
-      <td>${fmt(a.triggered_at)}</td>
-      <td><code style="font-size:11px">${shortId(a.id)}</code></td>
-      <td><b>${a.anomaly_score.toFixed(3)}</b></td>
-      <td><span class="badge ${cls}">${decisionLabel(a.decision)}</span></td>
-      <td>${(a.confidence * 100).toFixed(0)}%</td>
-      <td style="color:var(--muted)">${a.cache_hit ? '✓' : ''}</td>
-    </tr>`;
-  }).join('');
+  const sorted = [...engines].sort((a, b) => b.latest_score - a.latest_score);
+  $('queue-body').innerHTML = sorted.map(eng => {
+    const cls = riskClass(eng.latest_score, eng.latest_decision);
+    const color = riskColor(cls);
+    const pct = Math.min(eng.latest_score * 100, 100).toFixed(1);
+    const sel = eng.engine_id === selectedEngineId ? ' selected' : '';
+    const regime = eng.regime ? `<span title="Operating regime">⚙ ${eng.regime}</span>` : '';
+    const cycle = eng.latest_cycle ? `<span>Cycle ${eng.latest_cycle}</span>` : '';
+    const alerts = `<span>${eng.alert_count} alert${eng.alert_count !== 1 ? 's' : ''}</span>`;
 
-  $('feed-content').innerHTML = `
-    <table>
-      <thead><tr>
-        <th>Time</th><th>ID</th><th>Score</th><th>Decision</th><th>Conf.</th><th>Cache</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    return `
+    <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
+      <div class="engine-card-top">
+        <div class="engine-name">Engine ${eng.engine_id}</div>
+        <span class="engine-badge ${badgeClass(cls)}">${riskLabel(cls)}</span>
+      </div>
+      <div class="score-bar-row">
+        <div class="score-bar-track">
+          <div class="score-bar-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="score-val" style="color:${color}">${eng.latest_score.toFixed(3)}</div>
+      </div>
+      <div class="engine-meta">${cycle}${regime}${alerts}</div>
+    </div>`;
+  }).join('');
 }
 
-// ── Select alert ─────────────────────────────────────────
-async function selectAlert(id) {
-  selectedAlertId = id;
-  renderFeed(); // re-render to highlight row
+// ── Select engine ─────────────────────────────────────────────────────
+async function selectEngine(engineId) {
+  selectedEngineId = engineId;
+  renderQueue();
+
+  const eng = engines.find(e => e.engine_id === engineId);
+  if (!eng) return;
 
   $('detail-empty').style.display = 'none';
   $('detail-content').style.display = 'block';
   $('detail-content').innerHTML = '<div class="spinner">Loading…</div>';
 
-  const alert = alerts.find(a => a.id === id);
-  const score = alert ? alert.anomaly_score : 0;
-  const cls = decisionClass(alert?.decision, score);
+  await loadEngineDetail(engineId, eng.latest_score, eng.latest_decision);
+}
 
-  // Fetch explanation
-  let exp = null;
-  try { exp = await get(`/alerts/${id}/explanation`); } catch {}
+async function loadEngineDetail(engineId, score, decision) {
+  const eng = engines.find(e => e.engine_id === engineId);
+  if (!eng) return;
 
-  // Fetch prior feedback
-  let prior = [];
-  try { prior = await get(`/alerts/${id}/feedback`); } catch {}
+  // Fetch latest alert for this engine
+  let alert = null;
+  try {
+    const alerts = await get(`/alerts/recent?limit=200`);
+    alert = alerts.find(a => a.engine_id === engineId);
+  } catch {}
 
-  const barColor = scoreColor(score);
-  const barWidth = Math.min(score * 100, 100).toFixed(1);
+  // Fetch trace and explanation
+  let trace = [];
+  let explanation = null;
+  let regime = eng.regime || null;
 
-  const alreadyFeedback = feedbackSubmitted[id];
+  if (alert) {
+    try { trace = await get(`/alerts/${alert.id}/trace`); } catch {}
+    try {
+      const exp = await get(`/alerts/${alert.id}/explanation`);
+      explanation = exp.llm_explanation;
+      regime = exp.regime || regime;
+    } catch {}
+  }
+
+  const cls = riskClass(score, decision);
+  const color = riskColor(cls);
+  const pct = Math.min(score * 100, 100).toFixed(1);
+
+  // Extract data from trace nodes
+  const regimeNode    = trace.find(t => t.node_name === 'regime_classifier');
+  const causalNode    = trace.find(t => t.node_name === 'causal_reasoner');
+  const vetoNode      = trace.find(t => t.node_name === 'physics_veto');
+  const cacheNode     = trace.find(t => t.node_name === 'cache_lookup');
+  const decisionNode  = trace.find(t => t.node_name === 'decision_writer');
+
+  const causalScore  = causalNode?.output_state?.causal_score_refined ?? null;
+  const topSensors   = causalNode?.output_state?.top_sensors ?? [];
+  const vetoApplied  = vetoNode?.output_state?.physics_veto_applied ?? false;
+  const regimeLabel  = regimeNode?.output_state?.regime ?? regime ?? '—';
+  const fromCache    = cacheNode?.output_state?.from_cache ?? false;
+  const finalScore   = decisionNode?.output_state?.final_score ?? score;
+  const zScore       = engineAlerts[engineId]?.z_score ?? null;
+
+  // RUL from demo state if available
+  const rul = demoRulMap[engineId] ?? null;
+
+  const prior = await (async () => {
+    if (!alert) return [];
+    try { return await get(`/alerts/${alert.id}/feedback`); } catch { return []; }
+  })();
+
+  const alreadyFeedback = alert ? feedbackSubmitted[alert.id] : null;
+  const alertId = alert?.id;
 
   $('detail-content').innerHTML = `
-    <div class="detail-section">
-      <h3>Alert</h3>
-      <div class="kv-grid">
-        <div class="kv-key">ID</div><div class="kv-val" style="font-size:11px">${id}</div>
-        <div class="kv-key">Time</div><div class="kv-val">${fmt(alert?.triggered_at)}</div>
-        <div class="kv-key">Decision</div>
-        <div class="kv-val"><span class="badge ${cls}">${decisionLabel(alert?.decision || '—')}</span></div>
-        <div class="kv-key">Confidence</div><div class="kv-val">${((alert?.confidence || 0) * 100).toFixed(0)}%</div>
-        <div class="kv-key">Cache hit</div><div class="kv-val">${alert?.cache_hit ? 'Yes' : 'No'}</div>
-        <div class="kv-key">Regime</div><div class="kv-val">${exp?.regime || '—'}</div>
-      </div>
-      <div class="score-bar-wrap">
-        <div class="score-bar-label"><span>Anomaly score</span><span style="color:${barColor};font-weight:700">${score.toFixed(3)}</span></div>
-        <div class="score-bar-track">
-          <div class="score-bar-fill" style="width:${barWidth}%;background:${barColor}"></div>
+    <div class="detail-header">
+      <div>
+        <div class="detail-engine-name">Engine ${engineId}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">
+          ${eng.latest_cycle ? `Cycle ${eng.latest_cycle} · ` : ''}Last seen ${fmt(eng.last_seen)}
         </div>
       </div>
-    </div>
-
-    <div class="detail-section">
-      <h3>LLM Explanation</h3>
-      <div class="explanation-box ${exp?.llm_explanation ? '' : 'empty'}">
-        ${exp?.llm_explanation || 'No explanation available (agent runs when score ≥ 0.3).'}
+      <div class="detail-header-right">
+        <span class="engine-badge ${badgeClass(cls)}" style="font-size:12px;padding:4px 10px">${riskLabel(cls)}</span>
       </div>
-      ${exp?.llm_latency_ms ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">LLM latency: ${exp.llm_latency_ms}ms</div>` : ''}
     </div>
 
-    <div class="detail-section">
-      <h3>Operator Feedback</h3>
-      ${alreadyFeedback
-        ? `<div class="feedback-success">✓ Submitted: ${alreadyFeedback}</div>`
-        : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">
-             <label><input type="checkbox" id="override-cb" style="accent-color:var(--accent)">
-             Override (set confidence = 1.0, treat as ground truth)</label>
-           </div>
-           <div class="feedback-row">
-             <button class="btn ok"     onclick="submitFeedback('${id}','TRUE_POSITIVE')">✅ True Positive</button>
-             <button class="btn danger" onclick="submitFeedback('${id}','FALSE_POSITIVE')">❌ False Positive</button>
-             <button class="btn warn"   onclick="submitFeedback('${id}','UNCERTAIN')">❓ Uncertain</button>
-           </div>`
+    <!-- Score + RUL cards -->
+    <div class="score-grid">
+      <div class="score-card">
+        <div class="score-card-label">Anomaly Score</div>
+        <div class="score-card-value" style="color:${color}">${score.toFixed(3)}</div>
+        <div class="score-card-bar">
+          <div class="score-card-bar-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="score-card-sub">
+          ${causalScore !== null ? `Causal: ${causalScore.toFixed(3)}` : ''}
+          ${topSensors.length ? ` · ${topSensors.slice(0,3).join(', ')} flagged` : ''}
+        </div>
+      </div>
+      <div class="rul-card score-card">
+        <div class="score-card-label">Predicted Remaining Life</div>
+        ${rul !== null
+          ? `<div class="rul-value">${rul} cycles</div>
+             <div class="rul-label">until predicted failure</div>
+             <div class="score-card-bar" style="margin-top:8px">
+               <div class="score-card-bar-fill" style="width:${Math.min(100-rul/3,100).toFixed(0)}%;background:${rul<30?'var(--red)':rul<80?'var(--yellow)':'var(--green)'}"></div>
+             </div>`
+          : `<div class="rul-value" style="color:var(--muted)">—</div>
+             <div class="rul-label">Run demo to see RUL countdown</div>`
+        }
+      </div>
+    </div>
+
+    <!-- Regime + cache -->
+    <div class="section">
+      <div class="section-title">Operating Context</div>
+      <div class="kv-grid">
+        <div class="kv-key">Flight regime</div>
+        <div class="kv-val">${regimeLabel}</div>
+        <div class="kv-key">Cache hit</div>
+        <div class="kv-val">${fromCache ? '✓ Prior match found — score adjusted' : '✗ Fresh evaluation'}</div>
+        ${vetoApplied ? `<div class="kv-key">Physics veto</div><div class="kv-val" style="color:var(--yellow)">⚠ Applied — coupling break detected (G-test)</div>` : ''}
+      </div>
+    </div>
+
+    <!-- Baseline comparison (only if we have z_score) -->
+    ${zScore !== null ? `
+    <div class="section">
+      <div class="section-title">vs. Global Baseline</div>
+      <div class="baseline-grid">
+        <div class="baseline-card missed">
+          <div class="baseline-system">🔴 Global Z-score baseline</div>
+          <div class="baseline-verdict" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'var(--green)'}">
+            ${zScore >= 0.6 ? 'ALERT' : zScore >= 0.3 ? 'UNCERTAIN' : '✅ NORMAL — would miss this'}
+          </div>
+          <div class="baseline-score">Score: ${zScore.toFixed(3)} (ignores flight regime)</div>
+        </div>
+        <div class="baseline-card caught">
+          <div class="baseline-system">✅ Regime-aware causal (this system)</div>
+          <div class="baseline-verdict" style="color:${color}">${riskLabel(cls)}</div>
+          <div class="baseline-score">Score: ${score.toFixed(3)} (conditioned on ${regimeLabel})</div>
+        </div>
+      </div>
+      ${zScore < 0.3 && score >= 0.3 ? `
+      <div class="baseline-why">
+        💡 The global baseline sees normal readings because it uses fleet-wide averages.
+        This engine is operating in <strong>${regimeLabel}</strong> — its sensors naturally read higher.
+        The causal system conditions on this regime, making the anomaly visible.
+      </div>` : ''}
+    </div>` : ''}
+
+    <!-- Pipeline trace -->
+    ${trace.length ? `
+    <div class="section">
+      <div class="section-title">Pipeline Trace (${trace.length} nodes)</div>
+      <div class="trace-list">
+        ${trace.map((node, i) => {
+          const icons = {
+            ingest_validator: '✓', regime_classifier: '⚙',
+            causal_reasoner: '🔗', physics_veto: '🛡',
+            cache_lookup: '💾', llm_explainer: '🤖', decision_writer: '⚖'
+          };
+          const details = formatTraceDetail(node);
+          const isVeto = node.node_name === 'physics_veto' && node.output_state?.physics_veto_applied;
+          return `
+          <div class="trace-node ${isVeto ? 'veto' : 'active'}">
+            <div class="trace-icon ${isVeto ? 'veto' : 'done'}">${icons[node.node_name] || i+1}</div>
+            <div class="trace-body">
+              <div class="trace-name">${formatNodeName(node.node_name)}</div>
+              <div class="trace-detail">${details}</div>
+            </div>
+            ${node.latency_ms ? `<div class="trace-latency">${node.latency_ms}ms</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- LLM Explanation -->
+    <div class="section">
+      <div class="section-title">LLM Explanation</div>
+      <div class="explanation-box ${explanation ? '' : 'empty'}">
+        ${explanation || 'No explanation available — the LLM agent runs only when the anomaly score ≥ 0.3.'}
+      </div>
+    </div>
+
+    <!-- Feedback -->
+    <div class="section">
+      <div class="section-title">Operator Feedback</div>
+      ${!alertId ? '<div style="color:var(--muted);font-size:12px">No alert record found for this engine.</div>' :
+        alreadyFeedback
+          ? `<div class="feedback-success">✓ Submitted: ${alreadyFeedback}</div>`
+          : `<div class="feedback-row">
+               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}', ${engineId}, 'TRUE_POSITIVE')">✅ True Fault</button>
+               <button class="btn btn-danger" onclick="submitFeedback('${alertId}', ${engineId}, 'FALSE_POSITIVE')">❌ False Alarm</button>
+               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}', ${engineId}, 'UNCERTAIN')">❓ Uncertain</button>
+             </div>`
       }
-    </div>
-
-    ${prior.length > 0 ? `
-    <div class="detail-section">
-      <h3>Prior Feedback (${prior.length})</h3>
+      ${prior.length ? `
       <div class="prior-feedback">
         ${prior.map(p => `
           <div class="prior-item">
-            <span class="badge ${decisionClass(p.label, 0)}">${decisionLabel(p.label)}</span>
+            <span class="engine-badge ${p.label==='TRUE_POSITIVE'?'badge-alert':p.label==='FALSE_POSITIVE'?'badge-normal':'badge-monitor'}">
+              ${p.label.replace('_', ' ')}
+            </span>
             <span class="time">${fmt(p.submitted_at)}${p.override ? ' · override' : ''}</span>
           </div>`).join('')}
-      </div>
-    </div>` : ''}
+      </div>` : ''}
+    </div>
   `;
 }
 
-// ── Submit feedback ─────────────────────────────────────
-async function submitFeedback(alertId, label) {
-  const override = document.getElementById('override-cb')?.checked || false;
+function formatNodeName(name) {
+  const labels = {
+    ingest_validator: 'Data Validator',
+    regime_classifier: 'Regime Classifier',
+    causal_reasoner: 'Causal Reasoner',
+    physics_veto: 'Physics Veto (G-test)',
+    cache_lookup: 'Cache Lookup',
+    llm_explainer: 'LLM Explainer',
+    decision_writer: 'Decision Writer',
+  };
+  return labels[name] || name;
+}
+
+function formatTraceDetail(node) {
+  const s = node.output_state || {};
+  switch (node.node_name) {
+    case 'regime_classifier':
+      return s.regime ? `→ ${s.regime}` : '';
+    case 'causal_reasoner':
+      return [
+        s.causal_score_refined != null ? `score: ${Number(s.causal_score_refined).toFixed(3)}` : '',
+        s.top_sensors?.length ? `sensors: ${s.top_sensors.slice(0,3).join(', ')}` : '',
+      ].filter(Boolean).join(' · ');
+    case 'physics_veto':
+      return s.physics_veto_applied
+        ? `⚠ Veto applied — G-test detected coupling break`
+        : `✓ No coupling break detected`;
+    case 'cache_lookup':
+      return s.from_cache ? `✓ Cache hit — confidence adjusted` : `Miss — fresh evaluation`;
+    case 'llm_explainer':
+      return s.llm_explanation ? `✓ Explanation generated` : `Skipped (score < 0.3)`;
+    case 'decision_writer':
+      return [
+        s.final_decision ? s.final_decision : '',
+        s.final_score != null ? `score: ${Number(s.final_score).toFixed(3)}` : '',
+        s.final_confidence != null ? `conf: ${(Number(s.final_confidence)*100).toFixed(0)}%` : '',
+      ].filter(Boolean).join(' · ');
+    case 'ingest_validator':
+      return s.data_quality_ok ? '✓ Data quality OK' : '⚠ Data quality issues';
+    default:
+      return '';
+  }
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────
+async function submitFeedback(alertId, engineId, label) {
   try {
-    await post('/feedback', { alert_event_id: alertId, label, override });
+    await post('/feedback', { alert_event_id: alertId, label, override: false });
     feedbackSubmitted[alertId] = label;
-    selectAlert(alertId); // re-render detail
-    loadAlerts();
+    const eng = engines.find(e => e.engine_id === engineId);
+    if (eng) loadEngineDetail(engineId, eng.latest_score, eng.latest_decision);
   } catch (e) {
     alert(`Feedback failed: ${e.message}`);
   }
 }
 
-// ── PSI ─────────────────────────────────────────────────
+// ── PSI ───────────────────────────────────────────────────────────────
 let psiOpen = false;
 
 function togglePsi() {
   psiOpen = !psiOpen;
-  $('psi-toggle-icon').textContent = psiOpen ? '▼' : '▶';
-  $('psi-header').classList.toggle('open', psiOpen);
-  $('psi-body').classList.toggle('open', psiOpen);
+  $('psi-toggle').textContent = psiOpen ? '▼' : '▶';
+  $('psi-body').style.display = psiOpen ? 'flex' : 'none';
   if (psiOpen) loadPsi();
 }
 
@@ -592,56 +884,170 @@ async function loadPsi() {
   try {
     const data = await get('/psi/status');
     const sensors = data.sensors || [];
+    const nStable = sensors.filter(s=>s.status==='stable').length;
+    const nMod    = sensors.filter(s=>s.status==='moderate').length;
+    const nAct    = sensors.filter(s=>s.status==='action_required').length;
     $('psi-summary').textContent = sensors.length
-      ? `${sensors.filter(s=>s.status==='stable').length} stable · `
-      + `${sensors.filter(s=>s.status==='moderate').length} moderate · `
-      + `${sensors.filter(s=>s.status==='action_required').length} action required`
+      ? `${nStable} stable · ${nMod} moderate · ${nAct} action required`
       : 'no data yet';
 
-    if (!psiOpen) return;
-    $('psi-body').innerHTML = sensors.length
-      ? sensors.sort((a,b)=>a.sensor.localeCompare(b.sensor)).map(s => {
-          const icon = { stable:'✅', moderate:'⚠️', action_required:'🔴' }[s.status] || '❓';
-          return `<div class="psi-chip ${s.status}">
-            <div class="psi-name">${icon} ${s.sensor}</div>
-            <div class="psi-val">PSI: ${(s.psi??0).toFixed(4)}</div>
-            <div class="psi-val">${s.status}</div>
-          </div>`;
-        }).join('')
-      : '<div style="color:var(--muted);font-size:12px">Ingest readings to populate sensor baselines.</div>';
+    if (!psiOpen || !sensors.length) return;
+    const icons = { stable:'✅', moderate:'⚠️', action_required:'🔴' };
+    $('psi-body').innerHTML = sensors
+      .sort((a,b) => a.sensor.localeCompare(b.sensor))
+      .map(s => `
+        <div class="psi-chip ${s.status}">
+          <div class="psi-name">${icons[s.status]||'❓'} ${s.sensor}</div>
+          <div class="psi-val">PSI ${(s.psi??0).toFixed(4)}</div>
+        </div>`).join('');
   } catch {}
 }
 
-// ── Auto-refresh ─────────────────────────────────────────
-function setupAutoRefresh() {
-  const toggle = $('auto-refresh-toggle');
-  const slider = $('refresh-interval');
-  const label  = $('interval-label');
-
-  slider.addEventListener('input', () => {
-    label.textContent = slider.value + 's';
-    if (toggle.checked) startAutoRefresh();
-  });
-
-  toggle.addEventListener('change', () => {
-    if (toggle.checked) startAutoRefresh();
-    else stopAutoRefresh();
-  });
+// ── Env change ────────────────────────────────────────────────────────
+function onEnvChange() {
+  selectedEngineId = null;
+  engines = [];
+  engineAlerts = {};
+  renderQueue();
+  updateFleetBar();
+  loadEngines();
 }
 
+// ── Demo mode ─────────────────────────────────────────────────────────
+let demoRulMap = {};   // engineId → current estimated RUL
+
+async function toggleDemo() {
+  if (demoRunning) {
+    stopDemo();
+    return;
+  }
+  await startDemo();
+}
+
+function stopDemo() {
+  demoRunning = false;
+  if (demoAbort) { demoAbort(); demoAbort = null; }
+  $('demo-btn').textContent = '▶ Run Demo';
+  $('demo-btn').classList.remove('running');
+  $('demo-banner').classList.remove('visible');
+}
+
+async function startDemo() {
+  const ok = await checkHealth();
+  if (!ok) { alert('Backend is offline. Cannot run demo.'); return; }
+
+  let demoData;
+  try {
+    demoData = await get('/demo/readings');
+  } catch (e) {
+    alert('Demo data not available: ' + e.message);
+    return;
+  }
+
+  demoRunning = true;
+  demoAbort = null;
+  $('demo-btn').textContent = '⏹ Stop Demo';
+  $('demo-btn').classList.add('running');
+  $('demo-banner').classList.add('visible');
+
+  // Build per-engine reading queues
+  // Interleave all 3 engines round-robin for a real fleet feel
+  const queues = demoData.map(eng => ({
+    label: eng.label,
+    engine_id: eng.engine_id,
+    rul_at_end: eng.rul_at_end,
+    total: eng.total_test_cycles,
+    readings: eng.readings,
+    idx: 0,
+  }));
+
+  const totalReadings = queues.reduce((s, q) => s + q.readings.length, 0);
+  let sent = 0;
+  let aborted = false;
+  demoAbort = () => { aborted = true; };
+
+  $('demo-status').textContent = `⚡ Streaming ${totalReadings} readings across ${queues.length} engines…`;
+
+  // Rotate through engines, sending one reading per engine per tick
+  while (queues.some(q => q.idx < q.readings.length) && !aborted) {
+    for (const q of queues) {
+      if (q.idx >= q.readings.length || aborted) continue;
+
+      const reading = q.readings[q.idx];
+      q.idx++;
+      sent++;
+
+      // Compute estimated RUL for this position
+      const rul = q.rul_at_end + (q.total - q.idx);
+      demoRulMap[q.engine_id] = rul;
+
+      $('demo-detail').textContent =
+        `Engine ${q.engine_id} · ${q.label} · Cycle ${Math.round(reading.cycle)} · RUL ~${rul}`;
+      $('demo-progress').style.width = (sent / totalReadings * 100).toFixed(1) + '%';
+
+      try {
+        const result = await post('/ingest', reading);
+        // Store z_score for baseline comparison
+        if (!engineAlerts[q.engine_id]) engineAlerts[q.engine_id] = {};
+        engineAlerts[q.engine_id].z_score = result.z_score;
+
+        // Update engine in local state (or add if new)
+        const existing = engines.find(e => e.engine_id === q.engine_id);
+        const eng = {
+          engine_id: q.engine_id,
+          latest_score: result.combined_score,
+          latest_decision: result.decision,
+          latest_confidence: result.confidence,
+          latest_cycle: result.cycle,
+          alert_count: existing ? existing.alert_count + 1 : 1,
+          last_seen: result.created_at,
+          regime: existing?.regime || null,
+        };
+        if (existing) Object.assign(existing, eng);
+        else engines.push(eng);
+
+        renderQueue();
+        updateFleetBar();
+
+        // Refresh selected engine detail live
+        if (selectedEngineId === q.engine_id) {
+          loadEngineDetail(q.engine_id, result.combined_score, result.decision);
+        }
+      } catch {}
+
+      await sleep(350);
+    }
+  }
+
+  if (!aborted) {
+    $('demo-status').textContent = `✅ Demo complete — ${sent} readings streamed`;
+    $('demo-btn').textContent = '▶ Run Demo';
+    $('demo-btn').classList.remove('running');
+    demoRunning = false;
+    setTimeout(() => $('demo-banner').classList.remove('visible'), 3000);
+    loadEngines();
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ── Auto refresh ──────────────────────────────────────────────────────
 function startAutoRefresh() {
   stopAutoRefresh();
-  const ms = parseInt($('refresh-interval').value, 10) * 1000;
-  autoRefreshTimer = setInterval(loadAlerts, ms);
+  autoRefreshTimer = setInterval(() => {
+    if (!demoRunning) loadEngines();
+  }, 15000);
 }
 
 function stopAutoRefresh() {
   if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
 }
 
-// ── Init ─────────────────────────────────────────────────
-setupAutoRefresh();
-loadAlerts();
+// ── Init ──────────────────────────────────────────────────────────────
+loadEngines();
+startAutoRefresh();
 </script>
 </body>
 </html>

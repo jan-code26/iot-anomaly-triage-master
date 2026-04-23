@@ -1,38 +1,21 @@
 """
 Pydantic v2 schemas for the IoT Anomaly Triage ingestion pipeline.
-
-TelemetryReading    — validates incoming sensor data (POST /ingest body)
-SensorStatus        — per-sensor health status
-TelemetryWindowOut  — what the API returns after a successful insert
 """
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TelemetryReading(BaseModel):
-    """
-    A single engine sensor reading.
-
-    All 21 sensor fields are Optional — real IoT sensors fail.
-    A None value means the reading is missing and will be imputed later.
-    imputation_density is computed automatically: it's the fraction of the
-    21 sensors that are None (0.0 = all present, 1.0 = all missing).
-    """
-
-    engine_id: int = Field(..., ge=1, description="Engine identifier")
-    cycle: int = Field(..., ge=1, description="Current operating cycle number")
-
-    # Operational settings
+    engine_id: int = Field(..., ge=1)
+    cycle: int = Field(..., ge=1)
     op_setting_1: Optional[float] = None
     op_setting_2: Optional[float] = None
     op_setting_3: Optional[float] = None
-
-    # 21 sensor readings
     sensor_1: Optional[float] = None
     sensor_2: Optional[float] = None
     sensor_3: Optional[float] = None
@@ -54,8 +37,6 @@ class TelemetryReading(BaseModel):
     sensor_19: Optional[float] = None
     sensor_20: Optional[float] = None
     sensor_21: Optional[float] = None
-
-    # Auto-computed — do not pass this in; the validator fills it in
     imputation_density: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
@@ -67,8 +48,6 @@ class TelemetryReading(BaseModel):
 
 
 class SensorStatus(BaseModel):
-    """Per-sensor health status, populated by the forward-fill service."""
-
     sensor_id: str
     status: Literal["ok", "stale", "offline"]
     last_valid_value: Optional[float] = None
@@ -76,13 +55,7 @@ class SensorStatus(BaseModel):
 
 
 class TelemetryWindowOut(BaseModel):
-    """
-    Response model returned after a telemetry reading is saved to the database.
-    Confirms the row ID, what was stored, imputation info, and any warnings.
-    """
-
     model_config = ConfigDict(from_attributes=True)
-
     id: UUID
     engine_id: int
     cycle: int
@@ -90,6 +63,24 @@ class TelemetryWindowOut(BaseModel):
     stale_sensors: list[str] = []
     warnings: list[str] = []
     llm_explanation: Optional[str] = None
+    created_at: datetime
+
+
+class IngestOut(BaseModel):
+    """Full response from POST /ingest — includes score breakdown for dashboard."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    engine_id: int
+    cycle: int
+    z_score: float
+    causal_score: float
+    combined_score: float
+    decision: str
+    confidence: float
+    alert_event_id: Optional[str] = None
+    llm_explanation: Optional[str] = None
+    warnings: list[str] = []
+    imputation_density: float
     created_at: datetime
 
 
@@ -101,7 +92,6 @@ class FeedbackRequest(BaseModel):
 
 class FeedbackOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: UUID
     alert_event_id: UUID
     label: str
@@ -111,7 +101,6 @@ class FeedbackOut(BaseModel):
 
 class AlertEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: UUID
     telemetry_window_id: UUID
     triggered_at: datetime
@@ -119,3 +108,30 @@ class AlertEventOut(BaseModel):
     decision: str
     confidence: float
     cache_hit: bool
+    engine_id: Optional[int] = None
+    cycle: Optional[int] = None
+
+
+class PipelineNodeOut(BaseModel):
+    node_name: str
+    output_state: dict[str, Any] = {}
+    latency_ms: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+
+class EngineSummaryOut(BaseModel):
+    engine_id: int
+    latest_score: float
+    latest_decision: str
+    latest_confidence: float
+    latest_cycle: Optional[int] = None
+    alert_count: int
+    last_seen: datetime
+    regime: Optional[str] = None
+
+
+class DemoEngineOut(BaseModel):
+    engine_id: int
+    rul_at_end: int
+    total_test_cycles: int
+    readings: list[dict[str, Any]]

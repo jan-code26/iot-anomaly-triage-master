@@ -1,22 +1,22 @@
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-
-_DASHBOARD = Path(__file__).parent.parent / "dashboard"
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import insert, select, update
+from sqlalchemy import func, insert, select, update
 
 from backend.anomaly import compute_anomaly_score, make_decision
 from backend.database import engine
 from backend.logging_config import get_logger, setup_logging
 from backend.models import alert_events, human_feedback, maintenance_events, reasoning_traces, telemetry_windows
 from backend.schemas import (
-    AlertEventOut, FeedbackOut, FeedbackRequest,
+    AlertEventOut, DemoEngineOut, EngineSummaryOut, FeedbackOut,
+    FeedbackRequest, IngestOut, PipelineNodeOut,
     TelemetryReading, TelemetryWindowOut,
 )
 from backend.services.causal_scorer import compute_causal_score, save_dowhy_result
@@ -24,8 +24,18 @@ from backend.services.gtest_monitor import G_THRESHOLD, gtest_monitor
 from backend.services.psi_monitor import psi_monitor
 from backend.services.sensor_service import sensor_service
 
+_DASHBOARD = Path(__file__).parent.parent / "dashboard"
+_DEMO_DATA_PATH = Path(__file__).parent / "demo_data.json"
+_demo_engines: list[dict] = []
+
+def _load_demo_data() -> None:
+    global _demo_engines
+    if _DEMO_DATA_PATH.exists():
+        _demo_engines = json.loads(_DEMO_DATA_PATH.read_text())
+
 setup_logging()
 log = get_logger("backend.main")
+_load_demo_data()
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -79,7 +89,7 @@ def health_check():
 # Ingest
 # ---------------------------------------------------------------------------
 
-@app.post("/ingest", response_model=TelemetryWindowOut, status_code=201)
+@app.post("/ingest", response_model=IngestOut, status_code=201)
 @limiter.limit("10/second")
 def ingest(request: Request, reading: TelemetryReading):
     """
@@ -236,12 +246,17 @@ def ingest(request: Request, reading: TelemetryReading):
                 "error": str(exc)[:120],
             })
 
-    return TelemetryWindowOut(
+    return IngestOut(
         id=row["id"],
         engine_id=row["engine_id"],
         cycle=row["cycle"],
         imputation_density=row["imputation_density"],
-        stale_sensors=row["stale_sensors"] or [],
+        z_score=round(z_score, 6),
+        causal_score=round(causal_score, 6),
+        combined_score=combined_score,
+        decision=decision,
+        confidence=round(confidence, 6),
+        alert_event_id=alert_event_id,
         warnings=warnings,
         llm_explanation=llm_explanation,
         created_at=row["created_at"],
@@ -381,8 +396,8 @@ def submit_feedback(body: FeedbackRequest):
 
 
 @app.get("/alerts/recent", response_model=list[AlertEventOut])
-def get_recent_alerts(limit: int = 20):
-    """Return the most recent alert events, newest first."""
+def get_recent_alerts(limit: int = 50):
+    """Return the most recent alert events with engine_id and cycle, newest first."""
     try:
         with engine.connect() as conn:
             rows = conn.execute(
@@ -394,7 +409,10 @@ def get_recent_alerts(limit: int = 20):
                     alert_events.c.decision,
                     alert_events.c.confidence,
                     alert_events.c.cache_hit,
+                    telemetry_windows.c.engine_id,
+                    telemetry_windows.c.cycle,
                 )
+                .join(telemetry_windows, alert_events.c.telemetry_window_id == telemetry_windows.c.id)
                 .order_by(alert_events.c.triggered_at.desc())
                 .limit(limit)
             ).mappings().all()
@@ -402,6 +420,113 @@ def get_recent_alerts(limit: int = 20):
         raise HTTPException(status_code=500, detail=str(exc))
 
     return [AlertEventOut(**dict(row)) for row in rows]
+
+
+@app.get("/alerts/{alert_id}/trace", response_model=list[PipelineNodeOut])
+def get_alert_trace(alert_id: str):
+    """Return the full LangGraph pipeline trace for a given alert."""
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                select(
+                    reasoning_traces.c.node_name,
+                    reasoning_traces.c.output_state,
+                    reasoning_traces.c.latency_ms,
+                    reasoning_traces.c.created_at,
+                )
+                .where(reasoning_traces.c.alert_event_id == alert_id)
+                .order_by(reasoning_traces.c.id.asc())
+            ).mappings().all()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return [PipelineNodeOut(**dict(row)) for row in rows]
+
+
+@app.get("/engines/summary", response_model=list[EngineSummaryOut])
+def get_engines_summary():
+    """Return current status for every engine seen, sorted by risk (highest score first)."""
+    try:
+        with engine.connect() as conn:
+            # Latest alert per engine
+            subq = (
+                select(
+                    telemetry_windows.c.engine_id,
+                    func.max(alert_events.c.triggered_at).label("last_seen"),
+                )
+                .join(alert_events, alert_events.c.telemetry_window_id == telemetry_windows.c.id)
+                .group_by(telemetry_windows.c.engine_id)
+                .subquery()
+            )
+
+            rows = conn.execute(
+                select(
+                    telemetry_windows.c.engine_id,
+                    alert_events.c.anomaly_score,
+                    alert_events.c.decision,
+                    alert_events.c.confidence,
+                    telemetry_windows.c.cycle,
+                    alert_events.c.triggered_at,
+                    alert_events.c.id.label("alert_id"),
+                )
+                .join(alert_events, alert_events.c.telemetry_window_id == telemetry_windows.c.id)
+                .join(subq, (subq.c.engine_id == telemetry_windows.c.engine_id) &
+                             (alert_events.c.triggered_at == subq.c.last_seen))
+                .order_by(alert_events.c.anomaly_score.desc())
+            ).mappings().all()
+
+            # Count total alerts per engine
+            counts = conn.execute(
+                select(
+                    telemetry_windows.c.engine_id,
+                    func.count(alert_events.c.id).label("alert_count"),
+                )
+                .join(alert_events, alert_events.c.telemetry_window_id == telemetry_windows.c.id)
+                .group_by(telemetry_windows.c.engine_id)
+            ).mappings().all()
+            count_map = {r["engine_id"]: r["alert_count"] for r in counts}
+
+            # Fetch regime for each latest alert from reasoning_traces
+            regime_map: dict[int, str] = {}
+            for row in rows:
+                regime_row = conn.execute(
+                    select(reasoning_traces.c.output_state)
+                    .where(reasoning_traces.c.alert_event_id == str(row["alert_id"]))
+                    .where(reasoning_traces.c.node_name == "regime_classifier")
+                    .limit(1)
+                ).mappings().one_or_none()
+                if regime_row:
+                    regime_map[row["engine_id"]] = (regime_row["output_state"] or {}).get("regime")
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    seen = set()
+    result = []
+    for row in rows:
+        eid = row["engine_id"]
+        if eid in seen:
+            continue
+        seen.add(eid)
+        result.append(EngineSummaryOut(
+            engine_id=eid,
+            latest_score=row["anomaly_score"],
+            latest_decision=row["decision"],
+            latest_confidence=row["confidence"],
+            latest_cycle=row["cycle"],
+            alert_count=count_map.get(eid, 0),
+            last_seen=row["triggered_at"],
+            regime=regime_map.get(eid),
+        ))
+    return result
+
+
+@app.get("/demo/readings", response_model=list[DemoEngineOut])
+def get_demo_readings():
+    """Return the 3 curated FD001 demo engines for the dashboard demo mode."""
+    if not _demo_engines:
+        raise HTTPException(status_code=404, detail="Demo data not available")
+    return [DemoEngineOut(**e) for e in _demo_engines]
 
 
 @app.get("/alerts/{alert_id}/explanation")
