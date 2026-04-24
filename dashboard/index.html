@@ -204,6 +204,17 @@
     }
     .engine-meta span { display: flex; align-items: center; gap: 3px; }
 
+    .engine-label-sub {
+      font-size: 11px; color: var(--muted); margin-top: 2px; margin-bottom: 2px;
+    }
+    .engine-rul-inline {
+      font-size: 11px; font-weight: 600; margin-top: 4px;
+    }
+    .demo-queue-note {
+      padding: 10px 14px; font-size: 11px; color: var(--muted);
+      border-top: 1px solid var(--border); text-align: center; line-height: 1.6;
+    }
+
     .queue-empty {
       padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7;
     }
@@ -423,7 +434,7 @@
   <!-- LEFT: Engine Queue -->
   <div class="queue-panel">
     <div class="panel-header">
-      Engine Monitoring
+      <span id="queue-panel-label">Engine Monitoring</span>
       <div class="panel-header-right">
         <span id="engine-count" style="color:var(--muted);font-size:12px;font-weight:400"></span>
       </div>
@@ -469,6 +480,8 @@ let feedbackSubmitted = {};
 let autoRefreshTimer = null;
 let demoRunning = false;
 let demoAbort = null;
+let demoEngineIds = new Set();   // engine IDs actively in demo
+let demoLabels = {};             // engineId → human label (Near Failure etc.)
 
 const $ = id => document.getElementById(id);
 
@@ -545,18 +558,21 @@ function fmt(dt) {
 
 // ── Fleet bar ────────────────────────────────────────────────────────
 function updateFleetBar() {
-  const total = engines.length;
-  const nAlert   = engines.filter(e => riskClass(e.latest_score, e.latest_decision) === 'alert').length;
-  const nMonitor = engines.filter(e => riskClass(e.latest_score, e.latest_decision) === 'monitor').length;
-  const nNormal  = engines.filter(e => riskClass(e.latest_score, e.latest_decision) === 'normal').length;
-  const avgConf  = total ? (engines.reduce((s,e) => s + e.latest_confidence, 0) / total * 100).toFixed(0) + '%' : '—';
+  const list = demoRunning
+    ? engines.filter(e => demoEngineIds.has(e.engine_id))
+    : engines;
+  const total = demoRunning ? engines.length : list.length;
+  const nAlert   = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'alert').length;
+  const nMonitor = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'monitor').length;
+  const nNormal  = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'normal').length;
+  const avgConf  = list.length ? (list.reduce((s,e) => s + e.latest_confidence, 0) / list.length * 100).toFixed(0) + '%' : '—';
 
   $('fs-total').textContent   = total || '—';
   $('fs-alert').textContent   = nAlert || '0';
   $('fs-monitor').textContent = nMonitor || '0';
   $('fs-normal').textContent  = nNormal || '0';
   $('fs-precision').textContent = avgConf;
-  $('engine-count').textContent = total ? `(${total})` : '';
+  $('engine-count').textContent = demoRunning ? '(demo)' : (total ? `(${total})` : '');
 }
 
 // ── Load engines ─────────────────────────────────────────────────────
@@ -586,36 +602,88 @@ function renderQueue() {
     $('queue-body').innerHTML = `
       <div class="queue-empty">
         No engines yet.<br>
-        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to stream live CMAPSS data,<br>or POST readings to <code>/ingest</code>.</span>
+        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to watch the system<br>monitor 3 real NASA turbofan engines live.</span>
       </div>`;
     return;
   }
 
-  const sorted = [...engines].sort((a, b) => b.latest_score - a.latest_score);
-  $('queue-body').innerHTML = sorted.map(eng => {
-    const cls = riskClass(eng.latest_score, eng.latest_decision);
+  // In demo mode show only the 3 demo engines; otherwise show full fleet
+  const visible = demoRunning
+    ? engines.filter(e => demoEngineIds.has(e.engine_id))
+    : engines;
+
+  const sorted = [...visible].sort((a, b) => b.latest_score - a.latest_score);
+
+  const cards = sorted.map(eng => {
+    const cls   = riskClass(eng.latest_score, eng.latest_decision);
     const color = riskColor(cls);
     const barPct = Math.min(eng.latest_score * 100, 100).toFixed(1);
-    const sel = eng.engine_id === selectedEngineId ? ' selected' : '';
-    const regime = eng.regime ? `<span title="Flight conditions">✈ ${regimeName(eng.regime)}</span>` : '';
-    const cycle = eng.latest_cycle ? `<span>Cycle ${eng.latest_cycle}</span>` : '';
-    const alerts = `<span>${eng.alert_count} alert${eng.alert_count !== 1 ? 's' : ''}</span>`;
+    const sel    = eng.engine_id === selectedEngineId ? ' selected' : '';
 
-    return `
-    <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
-      <div class="engine-card-top">
-        <div class="engine-name">Engine ${eng.engine_id}</div>
-        <span class="engine-badge ${badgeClass(cls)}">${riskLabel(cls)}</span>
-      </div>
-      <div class="score-bar-row">
-        <div class="score-bar-track">
-          <div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div>
+    if (demoRunning) {
+      // ── Demo story card: label + RUL prominent ────────────────────
+      const label   = demoLabels[eng.engine_id] || `Engine ${eng.engine_id}`;
+      const rul     = demoRulMap[eng.engine_id] ?? null;
+      const rulColor = rul === null ? 'var(--muted)' : rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
+      const rulText  = rul !== null
+        ? `${rul} cycles remaining`
+        : 'Streaming…';
+      const regime  = eng.regime ? `✈ ${regimeName(eng.regime)}` : '';
+      const cycle   = eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : '';
+      const meta    = [cycle, regime].filter(Boolean).join(' · ');
+
+      return `
+      <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
+        <div class="engine-card-top">
+          <div>
+            <div class="engine-name">Engine ${eng.engine_id}</div>
+            <div class="engine-label-sub">${label}</div>
+          </div>
+          <span class="engine-badge ${badgeClass(cls)}">${riskLabel(cls)}</span>
         </div>
-        <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
-      </div>
-      <div class="engine-meta">${cycle}${regime}${alerts}</div>
-    </div>`;
+        <div class="score-bar-row">
+          <div class="score-bar-track">
+            <div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div>
+          </div>
+          <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
+        </div>
+        <div class="engine-rul-inline" style="color:${rulColor}">⏱ ${rulText}</div>
+        ${meta ? `<div class="engine-meta" style="margin-top:3px"><span>${meta}</span></div>` : ''}
+      </div>`;
+    } else {
+      // ── Normal fleet card ─────────────────────────────────────────
+      const regime = eng.regime ? `<span title="Flight conditions">✈ ${regimeName(eng.regime)}</span>` : '';
+      const cycle  = eng.latest_cycle ? `<span>Cycle ${eng.latest_cycle}</span>` : '';
+      const alerts = `<span>${eng.alert_count} alert${eng.alert_count !== 1 ? 's' : ''}</span>`;
+
+      return `
+      <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
+        <div class="engine-card-top">
+          <div class="engine-name">Engine ${eng.engine_id}</div>
+          <span class="engine-badge ${badgeClass(cls)}">${riskLabel(cls)}</span>
+        </div>
+        <div class="score-bar-row">
+          <div class="score-bar-track">
+            <div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div>
+          </div>
+          <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
+        </div>
+        <div class="engine-meta">${cycle}${regime}${alerts}</div>
+      </div>`;
+    }
   }).join('');
+
+  const footer = demoRunning
+    ? `<div class="demo-queue-note">
+        Demo: 3 representative engines<br>
+        <span style="font-size:10px">${Math.max(0, engines.length - demoEngineIds.size)} other engines paused · stop demo to see all</span>
+       </div>`
+    : '';
+
+  $('queue-body').innerHTML = cards + footer;
+
+  // Update panel header label
+  $('queue-panel-label').textContent = demoRunning ? 'Demo Engines' : 'Engine Monitoring';
 }
 
 // ── Select engine ─────────────────────────────────────────────────────
@@ -945,10 +1013,14 @@ async function toggleDemo() {
 
 function stopDemo() {
   demoRunning = false;
+  demoEngineIds = new Set();
+  demoLabels = {};
   if (demoAbort) { demoAbort(); demoAbort = null; }
   $('demo-btn').textContent = '▶ Run Demo';
   $('demo-btn').classList.remove('running');
   $('demo-banner').classList.remove('visible');
+  renderQueue();
+  updateFleetBar();
 }
 
 async function startDemo() {
@@ -978,6 +1050,10 @@ async function startDemo() {
     readings: eng.readings,
     idx: 0,
   }));
+
+  // Register which engines are demo engines so renderQueue can filter
+  demoEngineIds = new Set(queues.map(q => q.engine_id));
+  demoLabels = Object.fromEntries(queues.map(q => [q.engine_id, q.label]));
 
   // Auto-select the first demo engine so user immediately sees live updates
   selectedEngineId = queues[0].engine_id;
