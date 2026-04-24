@@ -388,23 +388,23 @@
 <div class="fleet-bar">
   <div class="fleet-stat">
     <div class="fleet-stat-value v-total" id="fs-total">—</div>
-    <div class="fleet-stat-label">Engines</div>
+    <div class="fleet-stat-label">Engines Monitored</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-alert" id="fs-alert">—</div>
-    <div class="fleet-stat-label">🔴 High Risk</div>
+    <div class="fleet-stat-label">🔴 Needs Attention</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-monitor" id="fs-monitor">—</div>
-    <div class="fleet-stat-label">🟡 Monitoring</div>
+    <div class="fleet-stat-label">🟡 Early Warning</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-normal" id="fs-normal">—</div>
-    <div class="fleet-stat-label">🟢 Normal</div>
+    <div class="fleet-stat-label">🟢 All Clear</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-muted" id="fs-precision">—</div>
-    <div class="fleet-stat-label">Avg Confidence</div>
+    <div class="fleet-stat-label">System Certainty</div>
   </div>
 </div>
 
@@ -423,7 +423,7 @@
   <!-- LEFT: Engine Queue -->
   <div class="queue-panel">
     <div class="panel-header">
-      Fleet Triage Queue
+      Engine Monitoring
       <div class="panel-header-right">
         <span id="engine-count" style="color:var(--muted);font-size:12px;font-weight:400"></span>
       </div>
@@ -431,7 +431,7 @@
     <div class="queue-body" id="queue-body">
       <div class="queue-empty">
         No engines yet.<br>
-        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to stream live CMAPSS data,<br>or POST readings to <code>/ingest</code>.</span>
+        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to watch the system<br>monitor 3 real NASA turbofan engines live.</span>
       </div>
     </div>
   </div>
@@ -441,8 +441,8 @@
     <div class="panel-header">Engine Detail</div>
     <div class="detail-body" id="detail-body">
       <div class="detail-empty" id="detail-empty">
-        <div>← Select an engine to inspect it</div>
-        <div class="hint">Click any engine in the queue to see<br>its score breakdown, pipeline trace, and LLM explanation</div>
+        <div>← Select an engine to see why it was flagged</div>
+        <div class="hint">The system shows exactly how it made its decision —<br>flight conditions, sensor analysis, and a plain-English explanation</div>
       </div>
       <div id="detail-content" style="display:none"></div>
     </div>
@@ -519,12 +519,24 @@ function riskColor(cls) {
 }
 
 function riskLabel(cls) {
-  return cls === 'alert' ? '🔴 High Risk' : cls === 'monitor' ? '🟡 Monitor' : '🟢 Normal';
+  return cls === 'alert' ? '🔴 Needs Attention' : cls === 'monitor' ? '🟡 Early Warning' : '🟢 All Clear';
 }
 
 function badgeClass(cls) {
   return cls === 'alert' ? 'badge-alert' : cls === 'monitor' ? 'badge-monitor' : 'badge-normal';
 }
+
+// ── Human-readable flight regime names ───────────────────────────────
+const REGIME_NAMES = {
+  'cluster_0': 'Ground ops / sea-level',
+  'cluster_1': 'Low-altitude cruise',
+  'cluster_2': 'Mid-altitude climb',
+  'cluster_3': 'High-altitude cruise',
+  'cluster_4': 'High-altitude cruise (cold)',
+  'cluster_5': 'Descent / approach',
+};
+function regimeName(r) { return (r && REGIME_NAMES[r]) || r || '—'; }
+function pct(score) { return (score * 100).toFixed(0) + '%'; }
 
 function fmt(dt) {
   if (!dt) return '—';
@@ -583,9 +595,9 @@ function renderQueue() {
   $('queue-body').innerHTML = sorted.map(eng => {
     const cls = riskClass(eng.latest_score, eng.latest_decision);
     const color = riskColor(cls);
-    const pct = Math.min(eng.latest_score * 100, 100).toFixed(1);
+    const barPct = Math.min(eng.latest_score * 100, 100).toFixed(1);
     const sel = eng.engine_id === selectedEngineId ? ' selected' : '';
-    const regime = eng.regime ? `<span title="Operating regime">⚙ ${eng.regime}</span>` : '';
+    const regime = eng.regime ? `<span title="Flight conditions">✈ ${regimeName(eng.regime)}</span>` : '';
     const cycle = eng.latest_cycle ? `<span>Cycle ${eng.latest_cycle}</span>` : '';
     const alerts = `<span>${eng.alert_count} alert${eng.alert_count !== 1 ? 's' : ''}</span>`;
 
@@ -597,9 +609,9 @@ function renderQueue() {
       </div>
       <div class="score-bar-row">
         <div class="score-bar-track">
-          <div class="score-bar-fill" style="width:${pct}%;background:${color}"></div>
+          <div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div>
         </div>
-        <div class="score-val" style="color:${color}">${eng.latest_score.toFixed(3)}</div>
+        <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
       </div>
       <div class="engine-meta">${cycle}${regime}${alerts}</div>
     </div>`;
@@ -648,7 +660,7 @@ async function loadEngineDetail(engineId, score, decision) {
 
   const cls = riskClass(score, decision);
   const color = riskColor(cls);
-  const pct = Math.min(score * 100, 100).toFixed(1);
+  const barPct = Math.min(score * 100, 100).toFixed(1);
 
   // Extract data from trace nodes
   const regimeNode    = trace.find(t => t.node_name === 'regime_classifier');
@@ -692,78 +704,77 @@ async function loadEngineDetail(engineId, score, decision) {
     <!-- Score + RUL cards -->
     <div class="score-grid">
       <div class="score-card">
-        <div class="score-card-label">Anomaly Score</div>
-        <div class="score-card-value" style="color:${color}">${score.toFixed(3)}</div>
+        <div class="score-card-label">Risk Score</div>
+        <div class="score-card-value" style="color:${color}">${pct(score)}</div>
         <div class="score-card-bar">
-          <div class="score-card-bar-fill" style="width:${pct}%;background:${color}"></div>
+          <div class="score-card-bar-fill" style="width:${barPct}%;background:${color}"></div>
         </div>
         <div class="score-card-sub">
-          ${causalScore !== null ? `Causal: ${causalScore.toFixed(3)}` : ''}
-          ${topSensors.length ? ` · ${topSensors.slice(0,3).join(', ')} flagged` : ''}
+          ${causalScore !== null ? `Sensor analysis: ${pct(causalScore)}` : ''}
+          ${topSensors.length ? ` · ${topSensors.slice(0,3).join(', ')} out of range` : ''}
         </div>
       </div>
       <div class="rul-card score-card">
-        <div class="score-card-label">Predicted Remaining Life</div>
+        <div class="score-card-label">Estimated Time to Failure</div>
         ${rul !== null
           ? `<div class="rul-value">${rul} cycles</div>
-             <div class="rul-label">until predicted failure</div>
+             <div class="rul-label">flight cycles until predicted failure</div>
              <div class="score-card-bar" style="margin-top:8px">
                <div class="score-card-bar-fill" style="width:${Math.min(100-rul/3,100).toFixed(0)}%;background:${rul<30?'var(--red)':rul<80?'var(--yellow)':'var(--green)'}"></div>
              </div>`
           : `<div class="rul-value" style="color:var(--muted)">—</div>
-             <div class="rul-label">Run demo to see RUL countdown</div>`
+             <div class="rul-label">Run the demo to see a live countdown</div>`
         }
       </div>
     </div>
 
-    <!-- Regime + cache -->
+    <!-- Flight conditions -->
     <div class="section">
-      <div class="section-title">Operating Context</div>
+      <div class="section-title">Flight Conditions</div>
       <div class="kv-grid">
-        <div class="kv-key">Flight regime</div>
-        <div class="kv-val">${regimeLabel}</div>
-        <div class="kv-key">Cache hit</div>
-        <div class="kv-val">${fromCache ? '✓ Prior match found — score adjusted' : '✗ Fresh evaluation'}</div>
-        ${vetoApplied ? `<div class="kv-key">Physics veto</div><div class="kv-val" style="color:var(--yellow)">⚠ Applied — coupling break detected (G-test)</div>` : ''}
+        <div class="kv-key">Flight conditions</div>
+        <div class="kv-val">${regimeName(regimeLabel)}</div>
+        ${vetoApplied ? `<div class="kv-key">Physics check</div><div class="kv-val" style="color:var(--yellow)">⚠ Sensor coupling break detected — score adjusted down</div>` : ''}
       </div>
     </div>
 
-    <!-- Baseline comparison (only if we have z_score) -->
+    <!-- Baseline comparison (only if we have z_score from a live ingest) -->
     ${zScore !== null ? `
     <div class="section">
-      <div class="section-title">vs. Global Baseline</div>
+      <div class="section-title">Why This System Beats the Old Approach</div>
       <div class="baseline-grid">
         <div class="baseline-card missed">
-          <div class="baseline-system">🔴 Global Z-score baseline</div>
+          <div class="baseline-system">Old approach — global average</div>
           <div class="baseline-verdict" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'var(--green)'}">
-            ${zScore >= 0.6 ? 'ALERT' : zScore >= 0.3 ? 'UNCERTAIN' : '✅ NORMAL — would miss this'}
+            ${zScore >= 0.6 ? '🔴 Also flagged this' : zScore >= 0.3 ? '🟡 Borderline — uncertain' : '✅ Called it normal — missed the fault'}
           </div>
-          <div class="baseline-score">Score: ${zScore.toFixed(3)} (ignores flight regime)</div>
+          <div class="baseline-score">Risk: ${pct(zScore)} — uses same thresholds for every engine, ignoring altitude &amp; speed</div>
         </div>
         <div class="baseline-card caught">
-          <div class="baseline-system">✅ Regime-aware causal (this system)</div>
+          <div class="baseline-system">This system — regime-aware</div>
           <div class="baseline-verdict" style="color:${color}">${riskLabel(cls)}</div>
-          <div class="baseline-score">Score: ${score.toFixed(3)} (conditioned on ${regimeLabel})</div>
+          <div class="baseline-score">Risk: ${pct(score)} — knows this engine is flying at ${regimeName(regimeLabel)}</div>
         </div>
       </div>
       ${zScore < 0.3 && score >= 0.3 ? `
       <div class="baseline-why">
-        💡 The global baseline sees normal readings because it uses fleet-wide averages.
-        This engine is operating in <strong>${regimeLabel}</strong> — its sensors naturally read higher.
-        The causal system conditions on this regime, making the anomaly visible.
+        💡 The old approach uses the same alarm thresholds regardless of how the engine is flying.
+        At <strong>${regimeName(regimeLabel)}</strong>, sensors naturally read differently — the old system sees
+        "normal" and stays silent. This system knows what normal looks like <em>for this flight condition</em>,
+        so the anomaly becomes visible.
       </div>` : ''}
     </div>` : ''}
 
-    <!-- Pipeline trace -->
+    <!-- How the system decided -->
     ${trace.length ? `
     <div class="section">
-      <div class="section-title">Pipeline Trace (${trace.length} nodes)</div>
+      <div class="section-title">How the System Decided</div>
       <div class="trace-list">
         ${trace.map((node, i) => {
           const icons = {
             ingest_validator: '✓', regime_classifier: '⚙',
             causal_reasoner: '🔗', physics_veto: '🛡',
-            cache_lookup: '💾', llm_explainer: '🤖', decision_writer: '⚖'
+            cache_lookup: '🔍', llm_explainer: '🤖', decision_writer: '⚖'
           };
           const details = formatTraceDetail(node);
           const isVeto = node.node_name === 'physics_veto' && node.output_state?.physics_veto_applied;
@@ -780,24 +791,25 @@ async function loadEngineDetail(engineId, score, decision) {
       </div>
     </div>` : ''}
 
-    <!-- LLM Explanation -->
+    <!-- Why this alert fired -->
     <div class="section">
-      <div class="section-title">LLM Explanation</div>
+      <div class="section-title">Why This Alert Fired</div>
       <div class="explanation-box ${explanation ? '' : 'empty'}">
-        ${explanation || 'No explanation available — the LLM agent runs only when the anomaly score ≥ 0.3.'}
+        ${explanation || 'The AI explanation runs automatically when risk exceeds 30%. Select an engine that\'s in Early Warning or Needs Attention to see it.'}
       </div>
     </div>
 
-    <!-- Feedback -->
+    <!-- Was this alert correct? -->
     <div class="section">
-      <div class="section-title">Operator Feedback</div>
-      ${!alertId ? '<div style="color:var(--muted);font-size:12px">No alert record found for this engine.</div>' :
+      <div class="section-title">Was This Alert Correct?</div>
+      ${!alertId ? '<div style="color:var(--muted);font-size:12px">No alert on record yet — readings are still being processed.</div>' :
         alreadyFeedback
-          ? `<div class="feedback-success">✓ Submitted: ${alreadyFeedback}</div>`
-          : `<div class="feedback-row">
-               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}', ${engineId}, 'TRUE_POSITIVE')">✅ True Fault</button>
-               <button class="btn btn-danger" onclick="submitFeedback('${alertId}', ${engineId}, 'FALSE_POSITIVE')">❌ False Alarm</button>
-               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}', ${engineId}, 'UNCERTAIN')">❓ Uncertain</button>
+          ? `<div class="feedback-success">✓ Feedback recorded: ${alreadyFeedback === 'TRUE_POSITIVE' ? 'Yes, confirmed fault' : alreadyFeedback === 'FALSE_POSITIVE' ? 'No, false alarm' : 'Not sure yet'}</div>`
+          : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Your feedback trains the system to be more accurate over time.</div>
+             <div class="feedback-row">
+               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}', ${engineId}, 'TRUE_POSITIVE')">✅ Yes, real fault</button>
+               <button class="btn btn-danger" onclick="submitFeedback('${alertId}', ${engineId}, 'FALSE_POSITIVE')">❌ False alarm</button>
+               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}', ${engineId}, 'UNCERTAIN')">❓ Not sure yet</button>
              </div>`
       }
       ${prior.length ? `
@@ -805,9 +817,9 @@ async function loadEngineDetail(engineId, score, decision) {
         ${prior.map(p => `
           <div class="prior-item">
             <span class="engine-badge ${p.label==='TRUE_POSITIVE'?'badge-alert':p.label==='FALSE_POSITIVE'?'badge-normal':'badge-monitor'}">
-              ${p.label.replace('_', ' ')}
+              ${p.label==='TRUE_POSITIVE'?'Confirmed fault':p.label==='FALSE_POSITIVE'?'False alarm':'Not sure'}
             </span>
-            <span class="time">${fmt(p.submitted_at)}${p.override ? ' · override' : ''}</span>
+            <span class="time">${fmt(p.submitted_at)}</span>
           </div>`).join('')}
       </div>` : ''}
     </div>
@@ -816,13 +828,13 @@ async function loadEngineDetail(engineId, score, decision) {
 
 function formatNodeName(name) {
   const labels = {
-    ingest_validator: 'Data Validator',
-    regime_classifier: 'Regime Classifier',
-    causal_reasoner: 'Causal Reasoner',
-    physics_veto: 'Physics Veto (G-test)',
-    cache_lookup: 'Cache Lookup',
-    llm_explainer: 'LLM Explainer',
-    decision_writer: 'Decision Writer',
+    ingest_validator:  '1 · Data quality check',
+    regime_classifier: '2 · Identify flight conditions',
+    causal_reasoner:   '3 · Analyse sensor causality',
+    physics_veto:      '4 · Physics validation',
+    cache_lookup:      '5 · Check for similar past cases',
+    llm_explainer:     '6 · Generate plain-English explanation',
+    decision_writer:   '7 · Final decision',
   };
   return labels[name] || name;
 }
@@ -830,29 +842,36 @@ function formatNodeName(name) {
 function formatTraceDetail(node) {
   const s = node.output_state || {};
   switch (node.node_name) {
+    case 'ingest_validator':
+      return s.data_quality_ok ? '✓ All sensor readings valid' : '⚠ Some sensor readings missing or stale';
     case 'regime_classifier':
-      return s.regime ? `→ ${s.regime}` : '';
-    case 'causal_reasoner':
-      return [
-        s.causal_score_refined != null ? `score: ${Number(s.causal_score_refined).toFixed(3)}` : '',
-        s.top_sensors?.length ? `sensors: ${s.top_sensors.slice(0,3).join(', ')}` : '',
-      ].filter(Boolean).join(' · ');
+      return s.regime
+        ? `→ Engine is flying at: ${regimeName(s.regime)}`
+        : '→ Flight condition identified';
+    case 'causal_reasoner': {
+      const sc = s.causal_score_refined != null ? `Risk contribution: ${pct(Number(s.causal_score_refined))}` : '';
+      const sns = s.top_sensors?.length ? `Sensors driving alert: ${s.top_sensors.slice(0,3).join(', ')}` : '';
+      return [sc, sns].filter(Boolean).join(' · ');
+    }
     case 'physics_veto':
       return s.physics_veto_applied
-        ? `⚠ Veto applied — G-test detected coupling break`
-        : `✓ No coupling break detected`;
+        ? `⚠ Sensor coupling break detected — risk score adjusted down to avoid false alarm`
+        : `✓ Sensor physics look consistent — no adjustment needed`;
     case 'cache_lookup':
-      return s.from_cache ? `✓ Cache hit — confidence adjusted` : `Miss — fresh evaluation`;
+      return s.from_cache
+        ? `✓ Similar past case found — used to calibrate confidence`
+        : `No similar past case — evaluated fresh`;
     case 'llm_explainer':
-      return s.llm_explanation ? `✓ Explanation generated` : `Skipped (score < 0.3)`;
-    case 'decision_writer':
-      return [
-        s.final_decision ? s.final_decision : '',
-        s.final_score != null ? `score: ${Number(s.final_score).toFixed(3)}` : '',
-        s.final_confidence != null ? `conf: ${(Number(s.final_confidence)*100).toFixed(0)}%` : '',
-      ].filter(Boolean).join(' · ');
-    case 'ingest_validator':
-      return s.data_quality_ok ? '✓ Data quality OK' : '⚠ Data quality issues';
+      return s.llm_explanation
+        ? `✓ AI wrote a plain-English explanation (see below)`
+        : `Skipped — risk was below 30%, no explanation needed`;
+    case 'decision_writer': {
+      const dec = s.final_decision === 'ALERT' ? 'Needs Attention'
+                : s.final_decision === 'UNCERTAIN' ? 'Early Warning'
+                : s.final_decision === 'NORMAL' ? 'All Clear' : s.final_decision || '';
+      const conf = s.final_confidence != null ? `· ${(Number(s.final_confidence)*100).toFixed(0)}% certain` : '';
+      return `→ ${dec} ${conf}`;
+    }
     default:
       return '';
   }
@@ -969,7 +988,7 @@ async function startDemo() {
   let aborted = false;
   demoAbort = () => { aborted = true; };
 
-  $('demo-status').textContent = `⚡ Streaming ${totalReadings} readings across ${queues.length} engines…`;
+  $('demo-status').textContent = `⚡ Simulating ${totalReadings} real NASA flight cycles across ${queues.length} engines…`;
 
   // Rotate through engines, sending one reading per engine per tick
   while (queues.some(q => q.idx < q.readings.length) && !aborted) {
@@ -994,6 +1013,19 @@ async function startDemo() {
         if (!engineAlerts[q.engine_id]) engineAlerts[q.engine_id] = {};
         engineAlerts[q.engine_id].z_score = result.z_score;
 
+        // Narrative banner message based on what just happened
+        const cls = riskClass(result.combined_score, result.decision);
+        let narrative = '';
+        if (cls === 'alert') {
+          const missed = result.z_score < 0.3;
+          narrative = `🔴 Engine ${q.engine_id} (${q.label}) — fault detected! ~${rul} cycles to failure${missed ? ' · Old system would have missed this' : ''}`;
+        } else if (cls === 'monitor') {
+          narrative = `⚠ Engine ${q.engine_id} (${q.label}) — early warning, sensors starting to diverge. ~${rul} cycles remaining`;
+        } else {
+          narrative = `Engine ${q.engine_id} (${q.label}) — readings normal. ~${rul} cycles to failure`;
+        }
+        $('demo-detail').textContent = narrative;
+
         // Push RUL into detail panel immediately if visible
         if (selectedEngineId === q.engine_id) {
           const rulEl = document.querySelector('.rul-value');
@@ -1002,7 +1034,7 @@ async function startDemo() {
             rulEl.textContent = rul + ' cycles';
             rulEl.style.color = rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
           }
-          if (rulLabelEl) rulLabelEl.textContent = 'until predicted failure';
+          if (rulLabelEl) rulLabelEl.textContent = 'flight cycles until predicted failure';
         }
 
         // Update engine in local state (or add if new)
