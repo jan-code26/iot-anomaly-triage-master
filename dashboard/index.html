@@ -10,27 +10,27 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:          #f8f7f4;
-      --surface:     #ffffff;
-      --surface2:    #f4f4f5;
-      --border:      #e4e4e7;
-      --border2:     #d4d4d8;
-      --text:        #18181b;
-      --text-2:      #3f3f46;
-      --text-3:      #71717a;
-      --text-4:      #a1a1aa;
-      --accent:      #2563eb;
-      --accent-lt:   #eff6ff;
-      --accent-mid:  #bfdbfe;
-      --red:         #dc2626;
-      --red-lt:      #fef2f2;
-      --red-mid:     #fecaca;
-      --yellow:      #d97706;
-      --yellow-lt:   #fffbeb;
-      --yellow-mid:  #fde68a;
-      --green:       #16a34a;
-      --green-lt:    #f0fdf4;
-      --green-mid:   #bbf7d0;
+      --bg:         #f8f7f4;
+      --surface:    #ffffff;
+      --surface2:   #f4f4f5;
+      --border:     #e4e4e7;
+      --border2:    #d4d4d8;
+      --text:       #18181b;
+      --text-2:     #3f3f46;
+      --text-3:     #71717a;
+      --text-4:     #a1a1aa;
+      --accent:     #2563eb;
+      --accent-lt:  #eff6ff;
+      --accent-mid: #bfdbfe;
+      --red:        #dc2626;
+      --red-lt:     #fef2f2;
+      --red-mid:    #fecaca;
+      --yellow:     #d97706;
+      --yellow-lt:  #fffbeb;
+      --yellow-mid: #fde68a;
+      --green:      #16a34a;
+      --green-lt:   #f0fdf4;
+      --green-mid:  #bbf7d0;
     }
 
     body {
@@ -44,105 +44,238 @@
       overflow: hidden;
     }
 
-    /* ── HEADER ── */
+    /* ── NAVBAR ─────────────────────────────────────────────────────── */
     header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0 20px;
+      background: #0d1117;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      padding: 0 24px;
       display: flex;
       align-items: center;
-      height: 48px;
+      height: 52px;
       flex-shrink: 0;
+      z-index: 10;
+      gap: 0;
     }
     .header-brand {
-      display: flex; align-items: center;
-      padding-right: 20px;
-      border-right: 1px solid var(--border);
-      white-space: nowrap;
+      display: flex; align-items: center; gap: 10px;
+      padding-right: 24px;
+      border-right: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
     }
-    .header-brand h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
-    .header-brand h1 span { color: var(--accent); }
-
-    nav { display: flex; align-items: stretch; }
-    nav a {
+    .brand-logo {
+      width: 30px; height: 30px;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      color: #60a5fa; flex-shrink: 0;
+    }
+    .brand-name {
+      font-size: 14px; font-weight: 600; color: #f1f5f9;
+      letter-spacing: -0.01em; line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 9.5px; color: rgba(255,255,255,0.28);
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.03em; margin-top: 1px;
+    }
+    nav { display: flex; align-items: stretch; padding-left: 8px; flex: 1; }
+    .nav-tab {
       display: flex; align-items: center;
-      padding: 0 14px; height: 48px;
-      font-size: 13px; color: var(--text-3);
-      text-decoration: none; white-space: nowrap;
+      padding: 0 16px; height: 52px;
+      font-size: 13px; color: rgba(255,255,255,0.4);
+      text-decoration: none;
       border-bottom: 2px solid transparent;
-      transition: color 0.12s;
+      transition: color 0.12s; white-space: nowrap;
     }
-    nav a:hover { color: var(--text); }
-    nav a.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+    .nav-tab:hover { color: rgba(255,255,255,0.75); }
+    .nav-tab.active { color: #f1f5f9; border-bottom-color: #3b82f6; font-weight: 500; }
 
-    .header-right {
-      display: flex; align-items: center; gap: 8px; margin-left: auto;
+    .header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+    .header-org-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 5px; padding: 4px 10px;
+      font-size: 11px; color: rgba(255,255,255,0.45);
+      font-family: 'IBM Plex Mono', monospace; white-space: nowrap;
     }
+    .org-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
     .env-select {
-      background: var(--bg); border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 5px; padding: 4px 8px;
-      color: var(--text-2); font-size: 11px; cursor: pointer;
+      color: rgba(255,255,255,0.55); font-size: 11px; cursor: pointer;
       font-family: 'IBM Plex Mono', monospace;
     }
-    .status-indicator { display: flex; align-items: center; gap: 5px; }
-    #status-dot {
-      width: 6px; height: 6px; border-radius: 50%; background: var(--text-4);
-    }
-    #status-dot.ok  { background: var(--green); }
-    #status-dot.err { background: var(--red); }
+    .status-pill { display: flex; align-items: center; gap: 5px; }
+    #status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    #status-dot.ok  { background: #22c55e; }
+    #status-dot.err { background: #ef4444; }
     #status-text {
-      font-size: 11px; color: var(--text-3); white-space: nowrap;
+      font-size: 11px; color: rgba(255,255,255,0.4);
       font-family: 'IBM Plex Mono', monospace;
+    }
+    .btn-icon {
+      background: none; border: none; color: rgba(255,255,255,0.35);
+      cursor: pointer; padding: 5px 7px; font-size: 14px; border-radius: 4px;
+    }
+    .btn-icon:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+
+    /* ── PROOF BAR ───────────────────────────────────────────────────── */
+    .proof-bar {
+      background: #0d1117;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 0 24px; flex-shrink: 0;
+    }
+    .proof-bar-inner {
+      display: flex; align-items: center;
+      height: 30px; gap: 10px; overflow: hidden;
+    }
+    .proof-chip {
+      font-size: 10.5px; color: rgba(255,255,255,0.45);
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: nowrap; flex-shrink: 1; min-width: 0;
+    }
+    .proof-chip-val { color: #60a5fa; font-weight: 500; }
+    .proof-sep { width: 1px; height: 12px; background: rgba(255,255,255,0.1); flex-shrink: 0; }
+    .proof-link {
+      margin-left: auto; font-size: 10.5px;
+      color: rgba(255,255,255,0.25); text-decoration: none;
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .proof-link:hover { color: #60a5fa; }
+
+    /* ── PAGE HEADER STRIP ───────────────────────────────────────────── */
+    .page-header-strip {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0; gap: 16px;
+    }
+    .phs-left { display: flex; align-items: baseline; gap: 12px; flex-shrink: 0; }
+    .phs-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .phs-sub { font-size: 11px; color: var(--text-3); font-family: 'IBM Plex Mono', monospace; }
+    .phs-right { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+    .phs-method-tag {
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+      padding: 2px 8px; border-radius: 4px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text-3); white-space: nowrap;
     }
 
-    .btn {
-      border: none; border-radius: 5px;
-      padding: 5px 12px; font-size: 12px;
-      cursor: pointer; white-space: nowrap; font-weight: 500;
-      font-family: 'Inter', sans-serif;
+    /* ── SHELL: sidebar + main ─────────────────────────────────────── */
+    .shell {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
     }
-    .btn-primary   { background: var(--accent); color: #fff; }
-    .btn-primary:hover { opacity: 0.88; }
-    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
-    .btn-secondary:hover { background: var(--surface2); }
+
+    /* ── SIDEBAR ──────────────────────────────────────────────────── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sb-nav { flex: 1; overflow-y: auto; padding: 8px 0; }
+    .sb-group { margin-bottom: 2px; }
+    .sb-group-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-4); padding: 10px 16px 4px;
+    }
+    .sb-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 16px; font-size: 13px; color: var(--text-2);
+      text-decoration: none; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .sb-item:hover { background: var(--bg); color: var(--text); }
+    .sb-item.active {
+      background: var(--accent-lt); color: var(--accent); font-weight: 500;
+    }
+    .sb-item.dim { color: var(--text-4); pointer-events: none; }
+    .sb-badge {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      background: var(--red-lt); color: var(--red);
+      border: 1px solid var(--red-mid);
+      padding: 1px 5px; border-radius: 99px;
+    }
+    .sb-badge.zero { background: var(--surface2); color: var(--text-4); border-color: var(--border); }
+
+    .sb-footer {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .sb-stream-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      padding: 4px 10px; border-radius: 99px;
+      border: 1px solid var(--green-mid);
+      background: var(--green-lt); color: var(--green);
+      width: fit-content;
+    }
+    .sb-stream-pill.offline { background: var(--surface2); color: var(--text-3); border-color: var(--border); }
+    .sb-stream-pill.simulating { background: var(--accent-lt); color: var(--accent); border-color: var(--accent-mid); }
+    .pulse-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
     #demo-btn {
       background: var(--surface); border: 1px solid var(--border);
-      color: var(--text-2); border-radius: 5px;
-      padding: 5px 12px; font-size: 12px; font-weight: 500;
+      border-radius: 5px; padding: 6px 12px;
+      font-size: 12px; font-weight: 500; color: var(--text-2);
       cursor: pointer; font-family: 'Inter', sans-serif;
+      width: 100%; text-align: left;
     }
     #demo-btn:hover { background: var(--surface2); }
     #demo-btn.running { background: var(--red-lt); border-color: var(--red-mid); color: var(--red); }
-    .btn-ok     { background: var(--green-lt);  color: var(--green);  border: 1px solid var(--green-mid); }
-    .btn-danger { background: var(--red-lt);    color: var(--red);    border: 1px solid var(--red-mid); }
-    .btn-warn   { background: var(--yellow-lt); color: var(--yellow); border: 1px solid var(--yellow-mid); }
 
-    /* ── STATS BAR ── */
-    .fleet-bar {
+    .sb-footer-links { font-size: 11px; color: var(--text-4); }
+    .sb-footer-links a { color: var(--text-3); text-decoration: none; }
+    .sb-footer-links a:hover { color: var(--accent); }
+
+    /* ── MAIN AREA ─────────────────────────────────────────────────── */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Stats bar */
+    .stats-bar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       display: flex; align-items: stretch;
-      flex-shrink: 0;
-      height: 54px;
+      flex-shrink: 0; height: 54px;
       padding: 0 20px;
     }
-    .fleet-stat {
-      display: flex; flex-direction: column;
-      justify-content: center;
-      padding: 0 24px;
+    .stat-cell {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 0 20px;
       border-right: 1px solid var(--border);
-      min-width: 110px;
+      min-width: 100px;
     }
-    .fleet-stat:first-child { padding-left: 0; }
-    .fleet-stat:last-child  { border-right: none; }
+    .stat-cell:first-child { padding-left: 0; }
+    .stat-cell:last-child  { border-right: none; }
     .fleet-stat-value {
       font-family: 'IBM Plex Mono', monospace;
       font-size: 20px; font-weight: 500; line-height: 1.1;
     }
     .fleet-stat-label {
       font-size: 10px; letter-spacing: 0.05em;
-      text-transform: uppercase; color: var(--text-3);
-      margin-top: 2px;
+      text-transform: uppercase; color: var(--text-3); margin-top: 2px;
     }
     .v-total   { color: var(--text); }
     .v-alert   { color: var(--red); }
@@ -150,53 +283,35 @@
     .v-normal  { color: var(--green); }
     .v-muted   { color: var(--text-3); }
 
-    /* ── STREAM NOTIFICATION BAR (was demo-banner) ── */
+    /* Stream bar (was demo-banner) */
     #demo-banner {
       display: none;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 0 20px;
-      height: 34px;
-      font-size: 11px;
-      flex-shrink: 0;
+      padding: 0 20px; height: 34px;
+      font-size: 11px; flex-shrink: 0;
       align-items: center; gap: 10px;
     }
     #demo-banner.visible { display: flex; }
-    .stream-dot {
+    .stream-dot-anim {
       width: 6px; height: 6px; border-radius: 50%;
       background: var(--green); flex-shrink: 0;
-      animation: stream-blink 1.6s infinite;
+      animation: pulse 1.6s infinite;
     }
-    @keyframes stream-blink {
-      0%, 100% { opacity: 1; } 50% { opacity: 0.2; }
-    }
-    #demo-status {
-      font-family: 'IBM Plex Mono', monospace;
-      color: var(--text-3); font-size: 11px;
-    }
-    .demo-progress-track {
-      flex: 1; max-width: 180px; height: 2px;
-      background: var(--border); border-radius: 1px; overflow: hidden;
-    }
-    .demo-progress-fill {
-      height: 100%; background: var(--accent);
-      transition: width 0.3s; border-radius: 1px;
-    }
-    #demo-detail {
-      color: var(--text-4); font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-      margin-left: auto;
-    }
+    #demo-status  { font-family: 'IBM Plex Mono', monospace; color: var(--text-3); font-size: 11px; }
+    #demo-detail  { font-family: 'IBM Plex Mono', monospace; color: var(--text-4); font-size: 11px; margin-left: auto; }
+    .prog-track   { flex: 1; max-width: 160px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+    .demo-progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; border-radius: 1px; }
 
-    /* ── WORKSPACE ── */
-    .main {
+    /* Workspace: asset list + detail */
+    .workspace {
+      flex: 1; overflow: hidden;
       display: grid;
-      grid-template-columns: 300px 1fr;
+      grid-template-columns: 280px 1fr;
       grid-template-rows: 1fr auto;
-      flex: 1;
-      overflow: hidden;
     }
 
-    /* ── ASSET PANEL (left) ── */
+    /* ── ASSET PANEL ──────────────────────────────────────────────── */
     .queue-panel {
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column; overflow: hidden;
@@ -208,142 +323,108 @@
       display: flex; align-items: center; justify-content: space-between;
       flex-shrink: 0;
     }
-    .panel-header span { font-size: 12px; font-weight: 600; letter-spacing: -0.01em; }
+    .panel-header-title { font-size: 12px; font-weight: 600; }
     .panel-header-right { display: flex; align-items: center; gap: 6px; }
     #engine-count {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 10px; color: var(--text-4);
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4);
     }
     .queue-body { flex: 1; overflow-y: auto; }
 
-    /* Asset rows */
     .engine-card {
       padding: 10px 14px 10px 16px;
       border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.1s;
+      cursor: pointer; transition: background 0.1s;
       position: relative;
     }
-    .engine-card:hover { background: var(--bg); }
+    .engine-card:hover   { background: var(--bg); }
     .engine-card.selected { background: var(--accent-lt); }
     .engine-card::before {
-      content: ''; position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 2px;
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
     }
-    .engine-card.risk-high::before   { background: var(--red); }
+    .engine-card.risk-high::before    { background: var(--red); }
     .engine-card.risk-monitor::before { background: var(--yellow); }
     .engine-card.risk-normal::before  { background: transparent; }
     .engine-card.selected::before     { background: var(--accent) !important; }
 
     .engine-card-top {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 5px;
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;
     }
-    .engine-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .engine-name { font-size: 13px; font-weight: 500; }
     .engine-badge {
+      font-family: 'IBM Plex Mono', monospace;
       font-size: 10px; font-weight: 500;
       padding: 1px 6px; border-radius: 3px; border: 1px solid;
-      font-family: 'IBM Plex Mono', monospace;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
     }
     .badge-alert   { background: var(--red-lt);    color: var(--red);    border-color: var(--red-mid); }
     .badge-monitor { background: var(--yellow-lt); color: var(--yellow); border-color: var(--yellow-mid); }
     .badge-normal  { background: var(--green-lt);  color: var(--green);  border-color: var(--green-mid); }
-    .badge-muted   { background: var(--surface2); color: var(--text-3);  border-color: var(--border); }
+    .badge-muted   { background: var(--surface2);  color: var(--text-3); border-color: var(--border); }
 
     .score-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .score-bar-track {
-      flex: 1; height: 3px; border-radius: 2px;
-      background: var(--border); overflow: hidden;
-    }
-    .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
-    .score-val {
-      font-size: 11px; font-weight: 500; min-width: 32px;
-      text-align: right; font-family: 'IBM Plex Mono', monospace;
-    }
-    .engine-meta {
-      display: flex; gap: 8px; font-size: 11px; color: var(--text-3);
-    }
+    .score-bar-track  { flex: 1; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+    .score-bar-fill   { height: 100%; border-radius: 2px; transition: width 0.4s; }
+    .score-val { font-size: 11px; font-weight: 500; min-width: 32px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
+    .engine-meta { display: flex; gap: 8px; font-size: 11px; color: var(--text-3); }
     .engine-label-sub { font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
-    .engine-rul-inline {
-      font-size: 11px; font-weight: 500; margin-top: 3px;
-      font-family: 'IBM Plex Mono', monospace;
-    }
+    .engine-rul-inline { font-size: 11px; font-weight: 500; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
     .demo-queue-note { display: none; }
 
     .queue-empty {
       padding: 48px 20px; text-align: center;
       color: var(--text-3); font-size: 12px; line-height: 1.8;
     }
-    .queue-empty strong { color: var(--text-2); font-weight: 500; }
 
-    /* ── DETAIL PANEL (right) ── */
+    /* ── DETAIL PANEL ────────────────────────────────────────────── */
     .detail-panel { display: flex; flex-direction: column; overflow: hidden; }
     .detail-body  { flex: 1; overflow-y: auto; padding: 24px; background: var(--bg); }
     .detail-empty {
       display: flex; flex-direction: column; align-items: center;
       justify-content: center; height: 100%;
-      color: var(--text-3); font-size: 12px; text-align: center; gap: 6px;
+      color: var(--text-3); text-align: center; gap: 6px;
     }
-    .detail-empty .hint { font-size: 11px; color: var(--text-4); line-height: 1.6; max-width: 280px; }
+    .detail-empty .hint {
+      font-size: 11px; color: var(--text-4); line-height: 1.6; max-width: 280px; margin-top: 4px;
+    }
 
-    /* Detail layout */
     .detail-header {
-      display: flex; align-items: flex-start;
-      justify-content: space-between; margin-bottom: 20px;
+      display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;
     }
-    .detail-engine-name {
-      font-size: 18px; font-weight: 600; letter-spacing: -0.02em;
-    }
-    .detail-header-sub {
-      font-size: 11px; color: var(--text-3); margin-top: 3px;
-      font-family: 'IBM Plex Mono', monospace;
-    }
-    .detail-header-right { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .detail-engine-name { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+    .detail-header-sub  { font-size: 11px; color: var(--text-3); margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
+    .detail-header-right { display: flex; gap: 8px; justify-content: flex-end; }
 
-    .score-grid {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 10px; margin-bottom: 18px;
-    }
+    .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
     .score-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 8px; padding: 14px;
     }
     .score-card-label {
-      font-size: 10px; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 8px;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-3); margin-bottom: 8px;
     }
     .score-card-value {
       font-size: 28px; font-weight: 600; margin-bottom: 8px;
       font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.02em;
     }
-    .score-card-bar {
-      height: 3px; border-radius: 2px; background: var(--border);
-      overflow: hidden; margin-bottom: 6px;
-    }
+    .score-card-bar { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; margin-bottom: 6px; }
     .score-card-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
     .score-card-sub { font-size: 11px; color: var(--text-3); }
 
-    .rul-card {}
     .rul-value {
-      font-size: 28px; font-weight: 600;
-      font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.02em; margin-bottom: 4px;
+      font-size: 28px; font-weight: 600; margin-bottom: 4px;
+      font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.02em;
     }
     .rul-label { font-size: 11px; color: var(--text-3); }
 
-    /* Sections */
     .section { margin-bottom: 18px; }
     .section-title {
       font-size: 11px; font-weight: 600; color: var(--text-2);
       margin-bottom: 10px; letter-spacing: -0.01em;
       display: flex; align-items: center; gap: 8px;
     }
-    .section-title::after {
-      content: ''; flex: 1; height: 1px; background: var(--border);
-    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    /* KV grid */
     .kv-grid { display: grid; grid-template-columns: 140px 1fr; gap: 3px 8px; }
     .kv-key { font-size: 11px; color: var(--text-3); padding: 3px 0; }
     .kv-val { font-size: 11px; font-weight: 500; padding: 3px 0; }
@@ -378,11 +459,11 @@
       font-size: 11px; color: #1d4ed8; line-height: 1.6;
     }
 
-    /* Pipeline trace — LangSmith-style */
-    .trace-list { display: flex; flex-direction: column; position: relative; padding-left: 2px; }
+    /* Pipeline trace */
+    .trace-list { display: flex; flex-direction: column; position: relative; }
     .trace-list::before {
       content: ''; position: absolute;
-      left: 14px; top: 16px; bottom: 16px;
+      left: 13px; top: 15px; bottom: 15px;
       width: 1px; background: var(--border);
     }
     .trace-node {
@@ -391,7 +472,7 @@
     }
     .trace-node:last-child { padding-bottom: 0; }
     .trace-icon {
-      width: 28px; height: 28px; border-radius: 50%;
+      width: 27px; height: 27px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-family: 'IBM Plex Mono', monospace;
       font-size: 11px; font-weight: 500; flex-shrink: 0;
@@ -407,7 +488,7 @@
     }
     .trace-node.active .trace-body { border-color: var(--border2); }
     .trace-node.veto   .trace-body { border-color: var(--red-mid); background: var(--red-lt); }
-    .trace-name   { font-size: 11px; font-weight: 600; margin-bottom: 2px; color: var(--text); }
+    .trace-name   { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
     .trace-detail { font-size: 11px; color: var(--text-3); line-height: 1.5; }
     .trace-latency {
       font-size: 10px; color: var(--text-4);
@@ -415,7 +496,6 @@
       flex-shrink: 0; padding-top: 8px;
     }
 
-    /* LLM explanation */
     .explanation-box {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 8px; padding: 14px;
@@ -423,9 +503,11 @@
     }
     .explanation-box.empty { color: var(--text-3); font-style: italic; }
 
-    /* Feedback */
     .feedback-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .feedback-row .btn { flex: 1; padding: 8px; font-size: 11px; min-width: 90px; }
+    .feedback-row .btn { flex: 1; padding: 8px; font-size: 11px; min-width: 90px; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500; border: 1px solid; }
+    .btn-ok     { background: var(--green-lt);  color: var(--green);  border-color: var(--green-mid); }
+    .btn-danger { background: var(--red-lt);    color: var(--red);    border-color: var(--red-mid); }
+    .btn-warn   { background: var(--yellow-lt); color: var(--yellow); border-color: var(--yellow-mid); }
     .feedback-success {
       padding: 10px 14px; border-radius: 6px;
       background: var(--green-lt); color: var(--green);
@@ -436,8 +518,7 @@
     .prior-item {
       display: flex; justify-content: space-between; align-items: center;
       padding: 5px 10px; border-radius: 5px;
-      background: var(--surface); border: 1px solid var(--border);
-      font-size: 11px;
+      background: var(--surface); border: 1px solid var(--border); font-size: 11px;
     }
     .prior-item .time { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
 
@@ -445,27 +526,22 @@
     .psi-strip {
       border-top: 1px solid var(--border);
       grid-column: 1 / -1;
-      background: var(--surface);
-      overflow: hidden;
+      background: var(--surface); overflow: hidden;
     }
     .psi-header {
-      padding: 8px 16px; display: flex; align-items: center; gap: 8px;
-      cursor: pointer; font-size: 12px; font-weight: 600;
-      user-select: none; color: var(--text-2);
+      padding: 7px 16px; display: flex; align-items: center; gap: 8px;
+      cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2);
+      user-select: none;
     }
     .psi-header:hover { background: var(--surface2); }
-    .psi-header .psi-toggle-icon { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); }
-    .psi-body {
-      padding: 8px 16px 10px;
-      display: flex; gap: 8px; flex-wrap: wrap;
-    }
+    .psi-body { padding: 8px 16px 10px; display: flex; gap: 8px; flex-wrap: wrap; }
     .psi-chip {
       padding: 5px 10px; border-radius: 5px; font-size: 11px;
       border: 1px solid var(--border); background: var(--bg);
       display: flex; flex-direction: column; gap: 1px; min-width: 80px;
     }
     .psi-chip .psi-name { font-weight: 500; color: var(--text-2); }
-    .psi-chip .psi-val  { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; }
+    .psi-chip .psi-val  { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
     .psi-chip.stable          { border-color: var(--green-mid); }
     .psi-chip.moderate        { border-color: var(--yellow-mid); }
     .psi-chip.action_required { border-color: var(--red-mid); }
@@ -476,112 +552,187 @@
 </head>
 <body>
 
-<!-- ── HEADER ── -->
+<!-- ── NAVBAR ── -->
 <header>
   <div class="header-brand">
-    <h1><span>IoT</span> Anomaly Triage</h1>
+    <div class="brand-logo">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <rect x="0" y="11" width="3.5" height="7" rx="1" fill="currentColor" opacity="0.35"/>
+        <rect x="5" y="7" width="3.5" height="11" rx="1" fill="currentColor" opacity="0.65"/>
+        <rect x="10" y="3" width="3.5" height="15" rx="1" fill="currentColor"/>
+        <circle cx="16" cy="3.5" r="2.5" fill="#ef4444"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">SensorGuard</div>
+      <div class="brand-sub">Predictive Maintenance Intelligence</div>
+    </div>
   </div>
+
   <nav>
-    <a href="/">Showcase</a>
-    <a href="/dashboard" class="active">Dashboard</a>
-    <a href="/tutorial">Tutorial</a>
+    <a href="/" class="nav-tab">Platform</a>
+    <a href="/dashboard" class="nav-tab active">Fleet Monitor</a>
+    <a href="/tutorial" class="nav-tab">Docs</a>
   </nav>
+
   <div class="header-right">
-    <button id="demo-btn" onclick="toggleDemo()">Simulate</button>
+    <div class="header-org-pill">
+      <div class="org-dot"></div>
+      <span>Demo Fleet · NASA CMAPSS</span>
+    </div>
     <select id="env-select" class="env-select" onchange="onEnvChange()">
-      <option value="https://iot-anomaly-triage-master.onrender.com" selected>Production</option>
+      <option value="https://iot-anomaly-triage-master.onrender.com">Production</option>
       <option value="http://localhost:8000">Local Dev</option>
     </select>
-    <div class="status-indicator">
+    <div class="status-pill">
       <div id="status-dot"></div>
-      <span id="status-text">—</span>
+      <span id="status-text">connecting…</span>
     </div>
-    <button class="btn btn-secondary" onclick="loadEngines()" style="padding:4px 8px;font-size:11px">↺</button>
+    <button class="btn-icon" onclick="loadEngines()" title="Refresh">↺</button>
   </div>
 </header>
 
-<!-- ── STATS BAR ── -->
-<div class="fleet-bar">
-  <div class="fleet-stat">
-    <div class="fleet-stat-value v-total" id="fs-total">—</div>
-    <div class="fleet-stat-label">Assets</div>
-  </div>
-  <div class="fleet-stat">
-    <div class="fleet-stat-value v-alert" id="fs-alert">—</div>
-    <div class="fleet-stat-label">Critical</div>
-  </div>
-  <div class="fleet-stat">
-    <div class="fleet-stat-value v-monitor" id="fs-monitor">—</div>
-    <div class="fleet-stat-label">Warning</div>
-  </div>
-  <div class="fleet-stat">
-    <div class="fleet-stat-value v-normal" id="fs-normal">—</div>
-    <div class="fleet-stat-label">Nominal</div>
-  </div>
-  <div class="fleet-stat">
-    <div class="fleet-stat-value v-muted" id="fs-precision">—</div>
-    <div class="fleet-stat-label">Avg Confidence</div>
+<!-- ── PROOF BAR ── -->
+<div class="proof-bar">
+  <div class="proof-bar-inner">
+    <span class="proof-chip"><span class="proof-chip-val">4.1×</span> better coverage vs baseline</span>
+    <div class="proof-sep"></div>
+    <span class="proof-chip"><span class="proof-chip-val">53%</span> earlier warning · 164.9 vs 107.4 cycles</span>
+    <div class="proof-sep"></div>
+    <span class="proof-chip">Multi-condition F1 <span class="proof-chip-val" style="color:#f59e0b">0.000</span> global → <span class="proof-chip-val" style="color:#34d399">0.352</span> regime-aware · 4 datasets · 707 engines</span>
+    <a href="https://github.com/jan-code26/iot-anomaly-triage" target="_blank" class="proof-link">Paper + code →</a>
   </div>
 </div>
 
-<!-- ── STREAM BAR ── -->
-<div id="demo-banner">
-  <div class="stream-dot"></div>
-  <span id="demo-status">Streaming…</span>
-  <div class="demo-progress-track">
-    <div class="demo-progress-fill" id="demo-progress" style="width:0%"></div>
-  </div>
-  <span id="demo-detail"></span>
-</div>
+<!-- ── APP SHELL ── -->
+<div class="shell">
 
-<!-- ── WORKSPACE ── -->
-<div class="main">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <nav class="sb-nav">
+      <div class="sb-group">
+        <div class="sb-group-label">Fleet</div>
+        <a class="sb-item active" href="#">Dashboard</a>
+        <a class="sb-item" href="#">Alert Feed <span class="sb-badge zero" id="sb-alert-badge">0</span></a>
+      </div>
+      <div class="sb-group">
+        <div class="sb-group-label">Operator Actions</div>
+        <a class="sb-item" href="#">Classifications</a>
+      </div>
+    </nav>
 
-  <!-- LEFT: Asset Monitor -->
-  <div class="queue-panel">
-    <div class="panel-header">
-      <span id="queue-panel-label">Fleet Monitor</span>
-      <div class="panel-header-right">
-        <span id="engine-count"></span>
+    <div class="sb-footer">
+      <div class="sb-stream-pill offline" id="sb-stream-pill">
+        <div class="pulse-dot"></div>
+        <span id="sb-stream-label">Connecting…</span>
+      </div>
+      <button id="demo-btn" onclick="toggleDemo()">▶ Start simulation</button>
+      <div class="sb-footer-links">
+        <a href="/">Platform overview</a> · <a href="/tutorial">Documentation</a>
       </div>
     </div>
-    <div class="queue-body" id="queue-body">
-      <div class="queue-empty">
-        No data streaming.<br>
-        <span>Click <strong>Simulate</strong> to load live NASA turbofan telemetry.</span>
+  </aside>
+
+  <!-- ── MAIN AREA ── -->
+  <div class="main-area">
+
+    <!-- Stats bar -->
+    <div class="stats-bar">
+      <div class="stat-cell">
+        <div class="fleet-stat-value v-total" id="fs-total">0</div>
+        <div class="fleet-stat-label">Assets</div>
+      </div>
+      <div class="stat-cell">
+        <div class="fleet-stat-value v-alert" id="fs-alert">0</div>
+        <div class="fleet-stat-label">Critical</div>
+      </div>
+      <div class="stat-cell">
+        <div class="fleet-stat-value v-monitor" id="fs-monitor">0</div>
+        <div class="fleet-stat-label">Warning</div>
+      </div>
+      <div class="stat-cell">
+        <div class="fleet-stat-value v-normal" id="fs-normal">0</div>
+        <div class="fleet-stat-label">Nominal</div>
+      </div>
+      <div class="stat-cell">
+        <div class="fleet-stat-value v-muted" id="fs-precision">—</div>
+        <div class="fleet-stat-label">Avg Confidence</div>
       </div>
     </div>
-  </div>
 
-  <!-- RIGHT: Incident Analysis -->
-  <div class="detail-panel">
-    <div class="panel-header">
-      <span>Incident Analysis</span>
-    </div>
-    <div class="detail-body" id="detail-body">
-      <div class="detail-empty" id="detail-empty">
-        <div style="font-size:20px;color:var(--border2);margin-bottom:6px">◈</div>
-        <div style="font-size:12px;color:var(--text-3)">Select an asset to view analysis</div>
-        <div class="hint">The pipeline trace, causal scores, and AI explanation<br>appear here when an asset is selected.</div>
+    <!-- Page header strip -->
+    <div class="page-header-strip">
+      <div class="phs-left">
+        <span class="phs-title">Fleet Monitor</span>
+        <span class="phs-sub">Regime-aware causal anomaly triage · real-time engine health across all operating conditions</span>
       </div>
-      <div id="detail-content" style="display:none"></div>
+      <div class="phs-right">
+        <span class="phs-method-tag">Causal DAG</span>
+        <span class="phs-method-tag">KMeans Regime Classifier</span>
+        <span class="phs-method-tag">Physics Veto (G-test)</span>
+        <span class="phs-method-tag">7-Node LangGraph Agent</span>
+      </div>
+    </div>
+
+    <!-- Stream bar -->
+    <div id="demo-banner">
+      <div class="stream-dot-anim"></div>
+      <span id="demo-status">Streaming…</span>
+      <div class="prog-track">
+        <div class="demo-progress-fill" id="demo-progress" style="width:0%"></div>
+      </div>
+      <span id="demo-detail"></span>
+    </div>
+
+    <!-- Workspace -->
+    <div class="workspace">
+
+      <!-- Asset list -->
+      <div class="queue-panel">
+        <div class="panel-header">
+          <span class="panel-header-title" id="queue-panel-label">Fleet Monitor</span>
+          <div class="panel-header-right">
+            <span id="engine-count"></span>
+          </div>
+        </div>
+        <div class="queue-body" id="queue-body">
+          <div class="queue-empty">
+            Press ▶ Start simulation below to begin
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail-panel">
+        <div class="panel-header">
+          <span class="panel-header-title">Incident Analysis</span>
+        </div>
+        <div class="detail-body" id="detail-body">
+          <div class="detail-empty" id="detail-empty">
+            <div style="font-size:22px;color:var(--border2)">◈</div>
+            <div style="font-size:12px;color:var(--text-3)">Select an asset to view analysis</div>
+            <div class="hint">Pipeline trace, causal scores, and AI explanation appear here.</div>
+          </div>
+          <div id="detail-content" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- PSI strip -->
+      <div class="psi-strip">
+        <div class="psi-header" onclick="togglePsi()">
+          Sensor Drift (PSI)
+          <span id="psi-toggle" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-4)">▶</span>
+          <span id="psi-summary" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-3);font-weight:400;margin-left:4px"></span>
+        </div>
+        <div id="psi-body" style="display:none"></div>
+      </div>
+
     </div>
   </div>
-
-  <!-- BOTTOM: Sensor Drift -->
-  <div class="psi-strip">
-    <div class="psi-header" onclick="togglePsi()">
-      Sensor Drift (PSI)
-      <span class="psi-toggle-icon" id="psi-toggle">▶</span>
-      <span id="psi-summary" style="color:var(--text-3);font-weight:400;font-size:11px;margin-left:4px;font-family:'IBM Plex Mono',monospace"></span>
-    </div>
-    <div id="psi-body" style="display:none"></div>
-  </div>
-
 </div>
 
 <script>
-// ── State ────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────
 let selectedEngineId = null;
 let engines = [];
 let engineAlerts = {};
@@ -591,6 +742,7 @@ let demoRunning = false;
 let demoAbort = null;
 let demoEngineIds = new Set();
 let demoLabels = {};
+let demoRulMap = {};
 
 const $ = id => document.getElementById(id);
 
@@ -598,13 +750,12 @@ function backend() {
   return $('env-select').value.replace(/\/$/, '');
 }
 
-// ── API ──────────────────────────────────────────────────────────────
+// ── API ───────────────────────────────────────────────────────────────
 async function get(path) {
   const r = await fetch(backend() + path);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
-
 async function post(path, body) {
   const r = await fetch(backend() + path, {
     method: 'POST',
@@ -615,110 +766,121 @@ async function post(path, body) {
   return r.json();
 }
 
-// ── Health ───────────────────────────────────────────────────────────
+// ── Health ────────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
     await get('/health');
     $('status-dot').className = 'ok';
     $('status-text').textContent = 'connected';
+    setSbStream('live');
     return true;
   } catch {
     $('status-dot').className = 'err';
-    $('status-text').textContent = 'offline';
+    $('status-text').textContent = 'connecting…';
+    setSbStream('offline');
     return false;
   }
 }
 
-// ── Risk helpers ─────────────────────────────────────────────────────
+function setSbStream(state) {
+  const pill  = $('sb-stream-pill');
+  const label = $('sb-stream-label');
+  pill.className = 'sb-stream-pill';
+  if (state === 'live') {
+    pill.classList.add('');   // green default
+    label.textContent = 'Live · FD001';
+  } else if (state === 'simulating') {
+    pill.classList.add('simulating');
+    label.textContent = 'Simulating…';
+  } else {
+    pill.classList.add('offline');
+    label.textContent = 'Offline';
+  }
+}
+
+// ── Risk helpers ──────────────────────────────────────────────────────
 function riskClass(score, decision) {
   if (score >= 0.6 || decision === 'ALERT' || decision === 'TRUE_POSITIVE') return 'alert';
   if (score >= 0.3 || decision === 'UNCERTAIN') return 'monitor';
   return 'normal';
 }
-
 function riskColor(cls) {
   return cls === 'alert' ? 'var(--red)' : cls === 'monitor' ? 'var(--yellow)' : 'var(--green)';
 }
-
 function riskLabel(cls) {
   return cls === 'alert' ? 'CRITICAL' : cls === 'monitor' ? 'WARNING' : 'NOMINAL';
 }
-
 function badgeClass(cls) {
   return cls === 'alert' ? 'badge-alert' : cls === 'monitor' ? 'badge-monitor' : 'badge-normal';
 }
 
-// ── Flight regime names ───────────────────────────────────────────────
 const REGIME_NAMES = {
-  'cluster_0': 'Ground ops / sea-level',
-  'cluster_1': 'Low-altitude cruise',
-  'cluster_2': 'Mid-altitude climb',
-  'cluster_3': 'High-altitude cruise',
-  'cluster_4': 'High-altitude cruise (cold)',
-  'cluster_5': 'Descent / approach',
+  cluster_0: 'Ground ops / sea-level',
+  cluster_1: 'Low-altitude cruise',
+  cluster_2: 'Mid-altitude climb',
+  cluster_3: 'High-altitude cruise',
+  cluster_4: 'High-altitude cruise (cold)',
+  cluster_5: 'Descent / approach',
 };
 function regimeName(r) { return (r && REGIME_NAMES[r]) || r || '—'; }
 function pct(score) { return (score * 100).toFixed(0) + '%'; }
-
 function fmt(dt) {
   if (!dt) return '—';
   return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// ── Fleet bar ────────────────────────────────────────────────────────
+// ── Fleet bar + sidebar badge ─────────────────────────────────────────
 function updateFleetBar() {
   const list = demoRunning
     ? engines.filter(e => demoEngineIds.has(e.engine_id))
     : engines;
-  const total   = demoRunning ? engines.length : list.length;
+  const total    = demoRunning ? engines.length : list.length;
   const nAlert   = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'alert').length;
   const nMonitor = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'monitor').length;
   const nNormal  = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'normal').length;
-  const avgConf  = list.length ? (list.reduce((s,e) => s + e.latest_confidence, 0) / list.length * 100).toFixed(0) + '%' : '—';
+  const avgConf  = list.length ? (list.reduce((s, e) => s + e.latest_confidence, 0) / list.length * 100).toFixed(0) + '%' : '—';
 
   $('fs-total').textContent   = total || '—';
   $('fs-alert').textContent   = nAlert || '0';
   $('fs-monitor').textContent = nMonitor || '0';
   $('fs-normal').textContent  = nNormal || '0';
   $('fs-precision').textContent = avgConf;
-  $('engine-count').textContent = demoRunning ? 'sim' : (total ? total : '');
+  $('engine-count').textContent = total ? String(total) : '';
+
+  // Sidebar alert badge
+  const badge = $('sb-alert-badge');
+  if (badge) {
+    badge.textContent = String(nAlert);
+    badge.className = 'sb-badge' + (nAlert > 0 ? '' : ' zero');
+  }
 }
 
-// ── Load engines ─────────────────────────────────────────────────────
+// ── Load engines ──────────────────────────────────────────────────────
 async function loadEngines() {
   const ok = await checkHealth();
   if (!ok) return;
-
   try {
     engines = await get('/engines/summary');
     renderQueue();
     updateFleetBar();
     loadPsi();
-
     if (selectedEngineId !== null) {
       const eng = engines.find(e => e.engine_id === selectedEngineId);
       if (eng) loadEngineDetail(selectedEngineId, eng.latest_score, eng.latest_decision);
     }
-  } catch (e) {
-    // No engines yet
-  }
+  } catch {}
 }
 
-// ── Render queue ─────────────────────────────────────────────────────
+// ── Render queue ──────────────────────────────────────────────────────
 function renderQueue() {
   if (!engines.length) {
-    $('queue-body').innerHTML = `
-      <div class="queue-empty">
-        No data streaming.<br>
-        <span>Click <strong>Simulate</strong> to load live NASA turbofan telemetry.</span>
-      </div>`;
+    $('queue-body').innerHTML = `<div class="queue-empty">No telemetry data yet.</div>`;
     return;
   }
 
   const visible = demoRunning
     ? engines.filter(e => demoEngineIds.has(e.engine_id))
     : engines;
-
   const sorted = [...visible].sort((a, b) => b.latest_score - a.latest_score);
 
   const cards = sorted.map(eng => {
@@ -732,10 +894,9 @@ function renderQueue() {
       const rul      = demoRulMap[eng.engine_id] ?? null;
       const rulColor = rul === null ? 'var(--text-4)' : rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
       const rulText  = rul !== null ? `${rul} cycles remaining` : 'Streaming…';
-      const regime   = eng.regime ? regimeName(eng.regime) : '';
       const cycle    = eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : '';
+      const regime   = eng.regime ? regimeName(eng.regime) : '';
       const meta     = [cycle, regime].filter(Boolean).join(' · ');
-
       return `
       <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
         <div class="engine-card-top">
@@ -746,9 +907,7 @@ function renderQueue() {
           <span class="engine-badge ${badgeClass(cls)}">${riskLabel(cls)}</span>
         </div>
         <div class="score-bar-row">
-          <div class="score-bar-track">
-            <div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div>
-          </div>
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
           <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
         </div>
         <div class="engine-rul-inline" style="color:${rulColor}">${rulText}</div>
@@ -758,7 +917,6 @@ function renderQueue() {
       const regime = eng.regime ? `<span>${regimeName(eng.regime)}</span>` : '';
       const cycle  = eng.latest_cycle ? `<span>Cycle ${eng.latest_cycle}</span>` : '';
       const alerts = `<span>${eng.alert_count} alert${eng.alert_count !== 1 ? 's' : ''}</span>`;
-
       return `
       <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
         <div class="engine-card-top">
@@ -766,9 +924,7 @@ function renderQueue() {
           <span class="engine-badge ${badgeClass(cls)}">${riskLabel(cls)}</span>
         </div>
         <div class="score-bar-row">
-          <div class="score-bar-track">
-            <div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div>
-          </div>
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
           <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
         </div>
         <div class="engine-meta">${cycle}${regime}${alerts}</div>
@@ -780,18 +936,15 @@ function renderQueue() {
   $('queue-panel-label').textContent = 'Fleet Monitor';
 }
 
-// ── Select engine ─────────────────────────────────────────────────────
+// ── Select / load engine detail ───────────────────────────────────────
 async function selectEngine(engineId) {
   selectedEngineId = engineId;
   renderQueue();
-
   const eng = engines.find(e => e.engine_id === engineId);
   if (!eng) return;
-
   $('detail-empty').style.display = 'none';
   $('detail-content').style.display = 'block';
   $('detail-content').innerHTML = '<div class="spinner">Loading…</div>';
-
   await loadEngineDetail(engineId, eng.latest_score, eng.latest_decision);
 }
 
@@ -805,10 +958,7 @@ async function loadEngineDetail(engineId, score, decision) {
     alert = alerts[0] || null;
   } catch {}
 
-  let trace = [];
-  let explanation = null;
-  let regime = eng.regime || null;
-
+  let trace = [], explanation = null, regime = eng.regime || null;
   if (alert) {
     try { trace = await get(`/alerts/${alert.id}/trace`); } catch {}
     try {
@@ -822,10 +972,10 @@ async function loadEngineDetail(engineId, score, decision) {
   const color  = riskColor(cls);
   const barPct = Math.min(score * 100, 100).toFixed(1);
 
-  const regimeNode   = trace.find(t => t.node_name === 'regime_classifier');
-  const causalNode   = trace.find(t => t.node_name === 'causal_reasoner');
-  const vetoNode     = trace.find(t => t.node_name === 'physics_veto');
-  const cacheNode    = trace.find(t => t.node_name === 'cache_lookup');
+  const regimeNode  = trace.find(t => t.node_name === 'regime_classifier');
+  const causalNode  = trace.find(t => t.node_name === 'causal_reasoner');
+  const vetoNode    = trace.find(t => t.node_name === 'physics_veto');
+  const cacheNode   = trace.find(t => t.node_name === 'cache_lookup');
   const decisionNode = trace.find(t => t.node_name === 'decision_writer');
 
   const causalScore = causalNode?.output_state?.causal_score_refined ?? null;
@@ -833,16 +983,13 @@ async function loadEngineDetail(engineId, score, decision) {
   const vetoApplied = vetoNode?.output_state?.physics_veto_applied ?? false;
   const regimeLabel = regimeNode?.output_state?.regime ?? regime ?? '—';
   const fromCache   = cacheNode?.output_state?.from_cache ?? false;
-  const finalScore  = decisionNode?.output_state?.final_score ?? score;
   const zScore      = engineAlerts[engineId]?.z_score ?? null;
-
-  const rul = demoRulMap[engineId] ?? null;
+  const rul         = demoRulMap[engineId] ?? null;
 
   const prior = await (async () => {
     if (!alert) return [];
     try { return await get(`/alerts/${alert.id}/feedback`); } catch { return []; }
   })();
-
   const alreadyFeedback = alert ? feedbackSubmitted[alert.id] : null;
   const alertId = alert?.id;
 
@@ -850,9 +997,7 @@ async function loadEngineDetail(engineId, score, decision) {
     <div class="detail-header">
       <div>
         <div class="detail-engine-name">Engine ${engineId}</div>
-        <div class="detail-header-sub">
-          ${eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : ''}${eng.latest_cycle && eng.last_seen ? ' · ' : ''}${eng.last_seen ? `Last seen ${fmt(eng.last_seen)}` : ''}
-        </div>
+        <div class="detail-header-sub">${eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : ''}${eng.latest_cycle && eng.last_seen ? ' · ' : ''}${eng.last_seen ? `Last seen ${fmt(eng.last_seen)}` : ''}</div>
       </div>
       <div class="detail-header-right">
         <span class="engine-badge ${badgeClass(cls)}" style="font-size:11px;padding:3px 8px">${riskLabel(cls)}</span>
@@ -863,9 +1008,7 @@ async function loadEngineDetail(engineId, score, decision) {
       <div class="score-card">
         <div class="score-card-label">Anomaly Score</div>
         <div class="score-card-value" style="color:${color}">${pct(score)}</div>
-        <div class="score-card-bar">
-          <div class="score-card-bar-fill" style="width:${barPct}%;background:${color}"></div>
-        </div>
+        <div class="score-card-bar"><div class="score-card-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
         <div class="score-card-sub">
           ${causalScore !== null ? `Causal contribution: ${pct(causalScore)}` : ''}
           ${topSensors.length ? ` · ${topSensors.slice(0,3).join(', ')} out of range` : ''}
@@ -880,7 +1023,7 @@ async function loadEngineDetail(engineId, score, decision) {
                <div class="score-card-bar-fill" style="width:${Math.min(100-rul/3,100).toFixed(0)}%;background:${rul<30?'var(--red)':rul<80?'var(--yellow)':'var(--green)'}"></div>
              </div>`
           : `<div class="rul-value" style="color:var(--text-4)">—</div>
-             <div class="rul-label">stream telemetry to compute RUL</div>`
+             <div class="rul-label">stream telemetry to compute</div>`
         }
       </div>
     </div>
@@ -890,9 +1033,9 @@ async function loadEngineDetail(engineId, score, decision) {
       <div class="kv-grid">
         <div class="kv-key">Flight regime</div>
         <div class="kv-val">${regimeName(regimeLabel)}</div>
-        <div class="kv-key">Cache hit</div>
-        <div class="kv-val" style="font-family:'IBM Plex Mono',monospace;font-size:11px">${fromCache ? 'Yes — calibrated from prior case' : 'No — evaluated fresh'}</div>
-        ${vetoApplied ? `<div class="kv-key">Physics gate</div><div class="kv-val" style="color:var(--yellow)">Sensor coupling break — score reduced</div>` : ''}
+        <div class="kv-key">Prior case lookup</div>
+        <div class="kv-val" style="font-family:'IBM Plex Mono',monospace;font-size:11px">${fromCache ? 'Cache hit — confidence calibrated' : 'No cache hit — fresh evaluation'}</div>
+        ${vetoApplied ? `<div class="kv-key">Physics gate</div><div class="kv-val" style="color:var(--yellow)">Coupling break detected — score reduced</div>` : ''}
       </div>
     </div>
 
@@ -906,7 +1049,7 @@ async function loadEngineDetail(engineId, score, decision) {
           <div class="baseline-verdict-label" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'var(--text-3)'}">
             ${zScore >= 0.6 ? 'Flagged' : zScore >= 0.3 ? 'Borderline' : 'No detection'}
           </div>
-          <div class="baseline-score">Single global threshold — ignores flight regime</div>
+          <div class="baseline-score">Single global threshold — no regime conditioning</div>
         </div>
         <div class="baseline-card caught">
           <div class="baseline-tag new">Causal Pipeline</div>
@@ -917,7 +1060,7 @@ async function loadEngineDetail(engineId, score, decision) {
       </div>
       ${zScore < 0.3 && score >= 0.3 ? `
       <div class="baseline-why">
-        At <strong>${regimeName(regimeLabel)}</strong>, sensors read outside global norms by design — the z-score baseline sees normal and stays silent.
+        At <strong>${regimeName(regimeLabel)}</strong>, sensors read outside global norms by design — the baseline sees normal and stays silent.
         The causal pipeline conditions on this operating regime, surfacing the anomaly.
       </div>` : ''}
     </div>` : ''}
@@ -928,13 +1071,12 @@ async function loadEngineDetail(engineId, score, decision) {
       <div class="trace-list">
         ${trace.map((node, i) => {
           const isVeto = node.node_name === 'physics_veto' && node.output_state?.physics_veto_applied;
-          const details = formatTraceDetail(node);
           return `
           <div class="trace-node ${isVeto ? 'veto' : 'active'}">
-            <div class="trace-icon ${isVeto ? 'veto' : 'done'}">${i+1}</div>
+            <div class="trace-icon ${isVeto ? 'veto' : 'done'}">${i + 1}</div>
             <div class="trace-body">
               <div class="trace-name">${formatNodeName(node.node_name)}</div>
-              <div class="trace-detail">${details}</div>
+              <div class="trace-detail">${formatTraceDetail(node)}</div>
             </div>
             ${node.latency_ms ? `<div class="trace-latency">${node.latency_ms}ms</div>` : ''}
           </div>`;
@@ -945,20 +1087,20 @@ async function loadEngineDetail(engineId, score, decision) {
     <div class="section">
       <div class="section-title">Root Cause Analysis</div>
       <div class="explanation-box ${explanation ? '' : 'empty'}">
-        ${explanation || 'AI explanation is generated when anomaly score exceeds 30%. Select an asset in Warning or Critical state to see it.'}
+        ${explanation || 'AI explanation is generated when anomaly score exceeds 30%. Select an asset in Warning or Critical state.'}
       </div>
     </div>
 
     <div class="section">
       <div class="section-title">Alert Classification</div>
-      ${!alertId ? '<div style="color:var(--text-3);font-size:11px">No alert on record — readings are still being evaluated.</div>' :
+      ${!alertId ? '<div style="color:var(--text-3);font-size:11px">No alert on record — readings still being evaluated.</div>' :
         alreadyFeedback
           ? `<div class="feedback-success">Classification recorded: ${alreadyFeedback === 'TRUE_POSITIVE' ? 'True anomaly' : alreadyFeedback === 'FALSE_POSITIVE' ? 'False positive' : 'Deferred'}</div>`
-          : `<div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Classify this alert to improve detection accuracy over time.</div>
+          : `<div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Classify this alert to improve detection accuracy.</div>
              <div class="feedback-row">
-               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}', ${engineId}, 'TRUE_POSITIVE')">Confirm — true anomaly</button>
-               <button class="btn btn-danger" onclick="submitFeedback('${alertId}', ${engineId}, 'FALSE_POSITIVE')">Dismiss — false positive</button>
-               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}', ${engineId}, 'UNCERTAIN')">Defer — needs review</button>
+               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}',${engineId},'TRUE_POSITIVE')">Confirm — true anomaly</button>
+               <button class="btn btn-danger" onclick="submitFeedback('${alertId}',${engineId},'FALSE_POSITIVE')">Dismiss — false positive</button>
+               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}',${engineId},'UNCERTAIN')">Defer — needs review</button>
              </div>`
       }
       ${prior.length ? `
@@ -994,7 +1136,7 @@ function formatTraceDetail(node) {
     case 'ingest_validator':
       return s.data_quality_ok ? 'All sensor readings valid' : 'Some readings missing or stale';
     case 'regime_classifier':
-      return s.regime ? `Regime identified: ${regimeName(s.regime)}` : 'Operating condition identified';
+      return s.regime ? `Regime: ${regimeName(s.regime)}` : 'Operating condition identified';
     case 'causal_reasoner': {
       const sc  = s.causal_score_refined != null ? `Score: ${pct(Number(s.causal_score_refined))}` : '';
       const sns = s.top_sensors?.length ? `Driving sensors: ${s.top_sensors.slice(0,3).join(', ')}` : '';
@@ -1002,25 +1144,22 @@ function formatTraceDetail(node) {
     }
     case 'physics_veto':
       return s.physics_veto_applied
-        ? 'Sensor coupling break detected — anomaly score reduced to prevent false positive'
+        ? 'Sensor coupling break — anomaly score reduced to prevent false positive'
         : 'Sensor physics consistent — no adjustment applied';
     case 'cache_lookup':
       return s.from_cache
-        ? 'Similar prior case found — used to calibrate confidence'
-        : 'No similar prior case — evaluated from scratch';
+        ? 'Similar prior case found — confidence calibrated'
+        : 'No prior case match — fresh evaluation';
     case 'llm_explainer':
-      return s.llm_explanation
-        ? 'Root cause explanation generated'
-        : 'Skipped — score below explanation threshold';
+      return s.llm_explanation ? 'Explanation generated' : 'Skipped — score below threshold';
     case 'decision_writer': {
       const dec  = s.final_decision === 'ALERT' ? 'CRITICAL'
                  : s.final_decision === 'UNCERTAIN' ? 'WARNING'
-                 : s.final_decision === 'NORMAL' ? 'NOMINAL' : s.final_decision || '';
-      const conf = s.final_confidence != null ? `· ${(Number(s.final_confidence)*100).toFixed(0)}% confidence` : '';
-      return `${dec} ${conf}`;
+                 : s.final_decision === 'NORMAL' ? 'NOMINAL' : (s.final_decision || '');
+      const conf = s.final_confidence != null ? ` · ${(Number(s.final_confidence)*100).toFixed(0)}% confidence` : '';
+      return dec + conf;
     }
-    default:
-      return '';
+    default: return '';
   }
 }
 
@@ -1031,72 +1170,58 @@ async function submitFeedback(alertId, engineId, label) {
     feedbackSubmitted[alertId] = label;
     const eng = engines.find(e => e.engine_id === engineId);
     if (eng) loadEngineDetail(engineId, eng.latest_score, eng.latest_decision);
-  } catch (e) {
-    alert(`Feedback failed: ${e.message}`);
-  }
+  } catch (e) { alert(`Failed: ${e.message}`); }
 }
 
 // ── PSI ───────────────────────────────────────────────────────────────
 let psiOpen = false;
-
 function togglePsi() {
   psiOpen = !psiOpen;
   $('psi-toggle').textContent = psiOpen ? '▼' : '▶';
   $('psi-body').style.display = psiOpen ? 'flex' : 'none';
   if (psiOpen) loadPsi();
 }
-
 async function loadPsi() {
   try {
     const data = await get('/psi/status');
     const sensors = data.sensors || [];
-    const nStable = sensors.filter(s=>s.status==='stable').length;
-    const nMod    = sensors.filter(s=>s.status==='moderate').length;
-    const nAct    = sensors.filter(s=>s.status==='action_required').length;
+    const nStable = sensors.filter(s => s.status === 'stable').length;
+    const nMod    = sensors.filter(s => s.status === 'moderate').length;
+    const nAct    = sensors.filter(s => s.status === 'action_required').length;
     $('psi-summary').textContent = sensors.length
       ? `${nStable} stable · ${nMod} moderate · ${nAct} action required`
       : 'no data';
-
     if (!psiOpen || !sensors.length) return;
-    const statusLabel = { stable:'stable', moderate:'moderate', action_required:'action required' };
     $('psi-body').innerHTML = sensors
-      .sort((a,b) => a.sensor.localeCompare(b.sensor))
+      .sort((a, b) => a.sensor.localeCompare(b.sensor))
       .map(s => `
         <div class="psi-chip ${s.status}">
           <div class="psi-name">${s.sensor}</div>
-          <div class="psi-val">PSI ${(s.psi??0).toFixed(4)} · ${statusLabel[s.status]||s.status}</div>
+          <div class="psi-val">PSI ${(s.psi ?? 0).toFixed(4)}</div>
         </div>`).join('');
   } catch {}
 }
 
 // ── Env change ────────────────────────────────────────────────────────
 function onEnvChange() {
-  selectedEngineId = null;
-  engines = [];
-  engineAlerts = {};
-  renderQueue();
-  updateFleetBar();
-  loadEngines();
+  selectedEngineId = null; engines = []; engineAlerts = {};
+  renderQueue(); updateFleetBar(); loadEngines();
 }
 
-// ── Demo / Simulation mode ─────────────────────────────────────────────
-let demoRulMap = {};
-
+// ── Demo / simulation ─────────────────────────────────────────────────
 async function toggleDemo() {
   if (demoRunning) { stopDemo(); return; }
   await startDemo();
 }
 
 function stopDemo() {
-  demoRunning = false;
-  demoEngineIds = new Set();
-  demoLabels = {};
+  demoRunning = false; demoEngineIds = new Set(); demoLabels = {};
   if (demoAbort) { demoAbort(); demoAbort = null; }
-  $('demo-btn').textContent = 'Simulate';
+  $('demo-btn').textContent = '▶ Start simulation';
   $('demo-btn').classList.remove('running');
   $('demo-banner').classList.remove('visible');
-  renderQueue();
-  updateFleetBar();
+  setSbStream('live');
+  renderQueue(); updateFleetBar();
 }
 
 async function startDemo() {
@@ -1104,18 +1229,14 @@ async function startDemo() {
   if (!ok) { alert('Backend is offline.'); return; }
 
   let demoData;
-  try {
-    demoData = await get('/demo/readings');
-  } catch (e) {
-    alert('Simulation data unavailable: ' + e.message);
-    return;
-  }
+  try { demoData = await get('/demo/readings'); }
+  catch (e) { alert('Simulation data unavailable: ' + e.message); return; }
 
-  demoRunning = true;
-  demoAbort = null;
-  $('demo-btn').textContent = 'Stop';
+  demoRunning = true; demoAbort = null;
+  $('demo-btn').textContent = '■ Stop simulation';
   $('demo-btn').classList.add('running');
   $('demo-banner').classList.add('visible');
+  setSbStream('simulating');
 
   const queues = demoData.map(eng => ({
     label: eng.label || `Engine ${eng.engine_id}`,
@@ -1127,29 +1248,23 @@ async function startDemo() {
   }));
 
   demoEngineIds = new Set(queues.map(q => q.engine_id));
-  demoLabels = Object.fromEntries(queues.map(q => [q.engine_id, q.label]));
-
+  demoLabels    = Object.fromEntries(queues.map(q => [q.engine_id, q.label]));
   selectedEngineId = queues[0].engine_id;
   renderQueue();
 
   const totalReadings = queues.reduce((s, q) => s + q.readings.length, 0);
-  let sent = 0;
-  let aborted = false;
+  let sent = 0, aborted = false;
   demoAbort = () => { aborted = true; };
 
-  $('demo-status').textContent = `Streaming ${totalReadings} readings · ${queues.length} engines`;
+  $('demo-status').textContent = `Streaming ${totalReadings} readings across ${queues.length} engines`;
 
   while (queues.some(q => q.idx < q.readings.length) && !aborted) {
     for (const q of queues) {
       if (q.idx >= q.readings.length || aborted) continue;
-
-      const reading = q.readings[q.idx];
-      q.idx++;
+      const reading = q.readings[q.idx++];
       sent++;
-
       const rul = q.rul_at_end + (q.total - q.idx);
       demoRulMap[q.engine_id] = rul;
-
       $('demo-progress').style.width = (sent / totalReadings * 100).toFixed(1) + '%';
 
       try {
@@ -1162,7 +1277,7 @@ async function startDemo() {
           `Engine ${q.engine_id} · Cycle ${Math.round(reading.cycle)} · RUL ~${rul} · ${riskLabel(cls)}`;
 
         if (selectedEngineId === q.engine_id) {
-          const rulEl = document.querySelector('.rul-value');
+          const rulEl      = document.querySelector('.rul-value');
           const rulLabelEl = document.querySelector('.rul-label');
           if (rulEl) {
             rulEl.textContent = rul + ' cycles';
@@ -1182,12 +1297,9 @@ async function startDemo() {
           last_seen: result.created_at,
           regime: existing?.regime || null,
         };
-        if (existing) Object.assign(existing, eng);
-        else engines.push(eng);
+        if (existing) Object.assign(existing, eng); else engines.push(eng);
 
-        renderQueue();
-        updateFleetBar();
-
+        renderQueue(); updateFleetBar();
         if (selectedEngineId === q.engine_id) {
           await loadEngineDetail(q.engine_id, result.combined_score, result.decision);
         }
@@ -1199,32 +1311,35 @@ async function startDemo() {
 
   if (!aborted) {
     $('demo-status').textContent = `Stream complete — ${sent} readings processed`;
-    $('demo-btn').textContent = 'Simulate';
+    $('demo-btn').textContent = '▶ Start simulation';
     $('demo-btn').classList.remove('running');
     demoRunning = false;
+    setSbStream('live');
     setTimeout(() => $('demo-banner').classList.remove('visible'), 3000);
     loadEngines();
   }
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Auto refresh ──────────────────────────────────────────────────────
 function startAutoRefresh() {
   stopAutoRefresh();
-  autoRefreshTimer = setInterval(() => {
-    if (!demoRunning) loadEngines();
-  }, 15000);
+  autoRefreshTimer = setInterval(() => { if (!demoRunning) loadEngines(); }, 15000);
 }
-
 function stopAutoRefresh() {
   if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────
-loadEngines();
+async function init() {
+  const ok = await loadEngines();
+  // Auto-start simulation when page first loads and backend has no data
+  if (!engines.length) {
+    try { await startDemo(); } catch {}
+  }
+}
+init();
 startAutoRefresh();
 </script>
 </body>
