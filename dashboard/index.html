@@ -1226,11 +1226,17 @@ function stopDemo() {
 
 async function startDemo() {
   const ok = await checkHealth();
-  if (!ok) { alert('Backend is offline.'); return; }
+  if (!ok) {
+    $('queue-body').innerHTML = '<div class="queue-empty">Backend is waking up — this takes ~30s on the free tier.<br>Try again in a moment.</div>';
+    return;
+  }
 
   let demoData;
   try { demoData = await get('/demo/readings'); }
-  catch (e) { alert('Simulation data unavailable: ' + e.message); return; }
+  catch (e) {
+    $('queue-body').innerHTML = `<div class="queue-empty">Simulation data unavailable.<br><span style="font-size:10px;color:var(--text-4)">${e.message}</span></div>`;
+    return;
+  }
 
   demoRunning = true; demoAbort = null;
   $('demo-btn').textContent = '■ Stop simulation';
@@ -1333,11 +1339,7 @@ function stopAutoRefresh() {
 
 // ── Init ──────────────────────────────────────────────────────────────
 async function init() {
-  const ok = await loadEngines();
-  // Auto-start simulation when page first loads and backend has no data
-  if (!engines.length) {
-    try { await startDemo(); } catch {}
-  }
+  await loadEngines();
 }
 init();
 startAutoRefresh();
