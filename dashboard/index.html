@@ -3,35 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IoT Anomaly Triage — Live Dashboard</title>
+  <title>IoT Anomaly Triage — Fleet Monitor</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f8f7f4;
-      --surface: #ffffff;
-      --surface2: #f0ede8;
-      --border: #e8e4df;
-      --text: #1a1a1a;
-      --muted: #6b7280;
-      --accent: #1a56db;
-      --red: #dc2626;
-      --yellow: #d97706;
-      --green: #059669;
-      --purple: #7c3aed;
-      --red-bg: #fef2f2;
-      --yellow-bg: #fffbeb;
-      --green-bg: #ecfdf5;
-      --purple-bg: #f5f3ff;
+      --bg:          #f8f7f4;
+      --surface:     #ffffff;
+      --surface2:    #f4f4f5;
+      --border:      #e4e4e7;
+      --border2:     #d4d4d8;
+      --text:        #18181b;
+      --text-2:      #3f3f46;
+      --text-3:      #71717a;
+      --text-4:      #a1a1aa;
+      --accent:      #2563eb;
+      --accent-lt:   #eff6ff;
+      --accent-mid:  #bfdbfe;
+      --red:         #dc2626;
+      --red-lt:      #fef2f2;
+      --red-mid:     #fecaca;
+      --yellow:      #d97706;
+      --yellow-lt:   #fffbeb;
+      --yellow-mid:  #fde68a;
+      --green:       #16a34a;
+      --green-lt:    #f0fdf4;
+      --green-mid:   #bbf7d0;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
-      font-size: 14px;
+      font-size: 13px;
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -47,7 +53,6 @@
       align-items: center;
       height: 48px;
       flex-shrink: 0;
-      gap: 0;
     }
     .header-brand {
       display: flex; align-items: center;
@@ -55,309 +60,386 @@
       border-right: 1px solid var(--border);
       white-space: nowrap;
     }
-    .header-brand h1 { font-size: 15px; font-weight: 600; }
+    .header-brand h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
     .header-brand h1 span { color: var(--accent); }
 
     nav { display: flex; align-items: stretch; }
     nav a {
       display: flex; align-items: center;
-      padding: 0 16px; height: 48px;
-      font-size: 13px; color: var(--muted);
+      padding: 0 14px; height: 48px;
+      font-size: 13px; color: var(--text-3);
       text-decoration: none; white-space: nowrap;
       border-bottom: 2px solid transparent;
-      transition: color 0.15s;
+      transition: color 0.12s;
     }
     nav a:hover { color: var(--text); }
-    nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+    nav a.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
 
     .header-right {
-      display: flex; align-items: center; gap: 10px; margin-left: auto;
+      display: flex; align-items: center; gap: 8px; margin-left: auto;
     }
     .env-select {
       background: var(--bg); border: 1px solid var(--border);
-      border-radius: 6px; padding: 4px 8px;
-      color: var(--text); font-size: 12px; cursor: pointer;
+      border-radius: 5px; padding: 4px 8px;
+      color: var(--text-2); font-size: 11px; cursor: pointer;
+      font-family: 'IBM Plex Mono', monospace;
     }
+    .status-indicator { display: flex; align-items: center; gap: 5px; }
     #status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--muted); flex-shrink: 0;
+      width: 6px; height: 6px; border-radius: 50%; background: var(--text-4);
     }
     #status-dot.ok  { background: var(--green); }
     #status-dot.err { background: var(--red); }
-    #status-text { font-size: 12px; color: var(--muted); white-space: nowrap; font-family: 'IBM Plex Mono', monospace; }
+    #status-text {
+      font-size: 11px; color: var(--text-3); white-space: nowrap;
+      font-family: 'IBM Plex Mono', monospace;
+    }
 
     .btn {
-      border: none; border-radius: 6px;
-      padding: 6px 14px; font-size: 13px;
+      border: none; border-radius: 5px;
+      padding: 5px 12px; font-size: 12px;
       cursor: pointer; white-space: nowrap; font-weight: 500;
+      font-family: 'Inter', sans-serif;
     }
-    .btn-primary  { background: var(--accent); color: #fff; }
-    .btn-primary:hover { opacity: 0.85; }
-    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
     .btn-secondary:hover { background: var(--surface2); }
-    .btn-demo { background: linear-gradient(135deg, #4f8ef7, #9f7aea); color: #fff; }
-    .btn-demo:hover { opacity: 0.9; }
-    .btn-demo.running { background: var(--red); }
-    .btn-ok     { background: #276749; color: #fff; }
-    .btn-danger { background: #c53030; color: #fff; }
-    .btn-warn   { background: #b7791f; color: #fff; }
+    #demo-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-2); border-radius: 5px;
+      padding: 5px 12px; font-size: 12px; font-weight: 500;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+    #demo-btn:hover { background: var(--surface2); }
+    #demo-btn.running { background: var(--red-lt); border-color: var(--red-mid); color: var(--red); }
+    .btn-ok     { background: var(--green-lt);  color: var(--green);  border: 1px solid var(--green-mid); }
+    .btn-danger { background: var(--red-lt);    color: var(--red);    border: 1px solid var(--red-mid); }
+    .btn-warn   { background: var(--yellow-lt); color: var(--yellow); border: 1px solid var(--yellow-mid); }
 
-    /* ── FLEET BAR ── */
+    /* ── STATS BAR ── */
     .fleet-bar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       display: flex; align-items: stretch;
       flex-shrink: 0;
-      height: 64px;
+      height: 54px;
+      padding: 0 20px;
     }
     .fleet-stat {
-      flex: 1; display: flex; flex-direction: column;
-      justify-content: center; align-items: center;
+      display: flex; flex-direction: column;
+      justify-content: center;
+      padding: 0 24px;
       border-right: 1px solid var(--border);
-      gap: 2px; padding: 0 8px;
+      min-width: 110px;
     }
-    .fleet-stat:last-child { border-right: none; }
-    .fleet-stat-value { font-size: 22px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
-    .fleet-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
-    .v-total   { color: var(--accent); }
+    .fleet-stat:first-child { padding-left: 0; }
+    .fleet-stat:last-child  { border-right: none; }
+    .fleet-stat-value {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 20px; font-weight: 500; line-height: 1.1;
+    }
+    .fleet-stat-label {
+      font-size: 10px; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--text-3);
+      margin-top: 2px;
+    }
+    .v-total   { color: var(--text); }
     .v-alert   { color: var(--red); }
     .v-monitor { color: var(--yellow); }
     .v-normal  { color: var(--green); }
-    .v-muted   { color: var(--muted); }
+    .v-muted   { color: var(--text-3); }
 
-    /* ── DEMO BANNER ── */
+    /* ── STREAM NOTIFICATION BAR (was demo-banner) ── */
     #demo-banner {
       display: none;
-      background: linear-gradient(90deg, rgba(79,142,247,0.15), rgba(159,122,234,0.15));
-      border-bottom: 1px solid rgba(79,142,247,0.3);
-      padding: 8px 20px;
-      font-size: 12px; color: var(--accent);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 34px;
+      font-size: 11px;
       flex-shrink: 0;
-      align-items: center; gap: 12px;
+      align-items: center; gap: 10px;
     }
     #demo-banner.visible { display: flex; }
-    .demo-progress-track {
-      flex: 1; max-width: 300px; height: 4px;
-      background: rgba(79,142,247,0.2); border-radius: 2px; overflow: hidden;
+    .stream-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+      animation: stream-blink 1.6s infinite;
     }
-    .demo-progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; border-radius: 2px; }
+    @keyframes stream-blink {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.2; }
+    }
+    #demo-status {
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--text-3); font-size: 11px;
+    }
+    .demo-progress-track {
+      flex: 1; max-width: 180px; height: 2px;
+      background: var(--border); border-radius: 1px; overflow: hidden;
+    }
+    .demo-progress-fill {
+      height: 100%; background: var(--accent);
+      transition: width 0.3s; border-radius: 1px;
+    }
+    #demo-detail {
+      color: var(--text-4); font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      margin-left: auto;
+    }
 
-    /* ── MAIN LAYOUT ── */
+    /* ── WORKSPACE ── */
     .main {
       display: grid;
-      grid-template-columns: 320px 1fr;
+      grid-template-columns: 300px 1fr;
       grid-template-rows: 1fr auto;
       flex: 1;
       overflow: hidden;
     }
 
-    /* ── ENGINE QUEUE (left) ── */
+    /* ── ASSET PANEL (left) ── */
     .queue-panel {
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column; overflow: hidden;
+      background: var(--surface);
     }
     .panel-header {
       padding: 10px 14px;
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
-      flex-shrink: 0; font-weight: 600; font-size: 13px;
+      flex-shrink: 0;
     }
+    .panel-header span { font-size: 12px; font-weight: 600; letter-spacing: -0.01em; }
     .panel-header-right { display: flex; align-items: center; gap: 6px; }
+    #engine-count {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; color: var(--text-4);
+    }
     .queue-body { flex: 1; overflow-y: auto; }
 
+    /* Asset rows */
     .engine-card {
-      padding: 12px 14px;
+      padding: 10px 14px 10px 16px;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
       transition: background 0.1s;
+      position: relative;
     }
-    .engine-card:hover { background: var(--surface2); }
-    .engine-card.selected { background: rgba(79,142,247,0.08); border-left: 3px solid var(--accent); }
-    .engine-card.risk-high { border-left: 3px solid var(--red); }
-    .engine-card.risk-high.selected { border-left-color: var(--accent); }
-    .engine-card.risk-monitor { border-left: 3px solid var(--yellow); }
-    .engine-card.risk-monitor.selected { border-left-color: var(--accent); }
-    .engine-card.risk-normal { border-left: 3px solid transparent; }
+    .engine-card:hover { background: var(--bg); }
+    .engine-card.selected { background: var(--accent-lt); }
+    .engine-card::before {
+      content: ''; position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 2px;
+    }
+    .engine-card.risk-high::before   { background: var(--red); }
+    .engine-card.risk-monitor::before { background: var(--yellow); }
+    .engine-card.risk-normal::before  { background: transparent; }
+    .engine-card.selected::before     { background: var(--accent) !important; }
 
     .engine-card-top {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
-    .engine-name { font-size: 14px; font-weight: 600; }
+    .engine-name { font-size: 13px; font-weight: 500; color: var(--text); }
     .engine-badge {
-      font-size: 10px; font-weight: 700; padding: 2px 7px;
-      border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em;
+      font-size: 10px; font-weight: 500;
+      padding: 1px 6px; border-radius: 3px; border: 1px solid;
       font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.04em;
     }
-    .badge-alert   { background: var(--red-bg);    color: var(--red); }
-    .badge-monitor { background: var(--yellow-bg); color: var(--yellow); }
-    .badge-normal  { background: var(--green-bg);  color: var(--green); }
-    .badge-muted   { background: rgba(136,146,164,0.12); color: var(--muted); }
+    .badge-alert   { background: var(--red-lt);    color: var(--red);    border-color: var(--red-mid); }
+    .badge-monitor { background: var(--yellow-lt); color: var(--yellow); border-color: var(--yellow-mid); }
+    .badge-normal  { background: var(--green-lt);  color: var(--green);  border-color: var(--green-mid); }
+    .badge-muted   { background: var(--surface2); color: var(--text-3);  border-color: var(--border); }
 
-    .score-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .score-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .score-bar-track {
-      flex: 1; height: 5px; border-radius: 3px;
+      flex: 1; height: 3px; border-radius: 2px;
       background: var(--border); overflow: hidden;
     }
-    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
-    .score-val { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
-
+    .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+    .score-val {
+      font-size: 11px; font-weight: 500; min-width: 32px;
+      text-align: right; font-family: 'IBM Plex Mono', monospace;
+    }
     .engine-meta {
-      display: flex; gap: 10px; font-size: 11px; color: var(--muted);
+      display: flex; gap: 8px; font-size: 11px; color: var(--text-3);
     }
-    .engine-meta span { display: flex; align-items: center; gap: 3px; }
-
-    .engine-label-sub {
-      font-size: 11px; color: var(--muted); margin-top: 2px; margin-bottom: 2px;
-    }
+    .engine-label-sub { font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
     .engine-rul-inline {
-      font-size: 11px; font-weight: 600; margin-top: 4px;
+      font-size: 11px; font-weight: 500; margin-top: 3px;
+      font-family: 'IBM Plex Mono', monospace;
     }
-    .demo-queue-note {
-      padding: 10px 14px; font-size: 11px; color: var(--muted);
-      border-top: 1px solid var(--border); text-align: center; line-height: 1.6;
-    }
+    .demo-queue-note { display: none; }
 
     .queue-empty {
-      padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7;
+      padding: 48px 20px; text-align: center;
+      color: var(--text-3); font-size: 12px; line-height: 1.8;
     }
+    .queue-empty strong { color: var(--text-2); font-weight: 500; }
 
     /* ── DETAIL PANEL (right) ── */
     .detail-panel { display: flex; flex-direction: column; overflow: hidden; }
-    .detail-body  { flex: 1; overflow-y: auto; padding: 20px; }
+    .detail-body  { flex: 1; overflow-y: auto; padding: 24px; background: var(--bg); }
     .detail-empty {
       display: flex; flex-direction: column; align-items: center;
       justify-content: center; height: 100%;
-      color: var(--muted); font-size: 13px; text-align: center; gap: 12px;
+      color: var(--text-3); font-size: 12px; text-align: center; gap: 6px;
     }
-    .detail-empty .hint { font-size: 12px; opacity: 0.6; }
+    .detail-empty .hint { font-size: 11px; color: var(--text-4); line-height: 1.6; max-width: 280px; }
 
-    /* Detail sections */
+    /* Detail layout */
     .detail-header {
       display: flex; align-items: flex-start;
       justify-content: space-between; margin-bottom: 20px;
     }
-    .detail-engine-name { font-size: 22px; font-weight: 700; }
+    .detail-engine-name {
+      font-size: 18px; font-weight: 600; letter-spacing: -0.02em;
+    }
+    .detail-header-sub {
+      font-size: 11px; color: var(--text-3); margin-top: 3px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
     .detail-header-right { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
     .score-grid {
       display: grid; grid-template-columns: 1fr 1fr;
-      gap: 12px; margin-bottom: 20px;
+      gap: 10px; margin-bottom: 18px;
     }
     .score-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px;
+      border-radius: 8px; padding: 14px;
     }
     .score-card-label {
       font-size: 10px; text-transform: uppercase;
-      letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px;
+      letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 8px;
     }
-    .score-card-value { font-size: 28px; font-weight: 700; margin-bottom: 8px; font-family: 'IBM Plex Mono', monospace; }
-    .score-card-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 4px; }
-    .score-card-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
-    .score-card-sub { font-size: 11px; color: var(--muted); }
-
-    .rul-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px;
+    .score-card-value {
+      font-size: 28px; font-weight: 600; margin-bottom: 8px;
+      font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.02em;
     }
-    .rul-value { font-size: 28px; font-weight: 700; color: var(--yellow); margin-bottom: 2px; font-family: 'IBM Plex Mono', monospace; }
-    .rul-label { font-size: 11px; color: var(--muted); }
+    .score-card-bar {
+      height: 3px; border-radius: 2px; background: var(--border);
+      overflow: hidden; margin-bottom: 6px;
+    }
+    .score-card-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+    .score-card-sub { font-size: 11px; color: var(--text-3); }
 
-    /* Section headers */
-    .section { margin-bottom: 20px; }
+    .rul-card {}
+    .rul-value {
+      font-size: 28px; font-weight: 600;
+      font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.02em; margin-bottom: 4px;
+    }
+    .rul-label { font-size: 11px; color: var(--text-3); }
+
+    /* Sections */
+    .section { margin-bottom: 18px; }
     .section-title {
-      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
-      color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 600; color: var(--text-2);
+      margin-bottom: 10px; letter-spacing: -0.01em;
+      display: flex; align-items: center; gap: 8px;
     }
     .section-title::after {
       content: ''; flex: 1; height: 1px; background: var(--border);
     }
 
+    /* KV grid */
+    .kv-grid { display: grid; grid-template-columns: 140px 1fr; gap: 3px 8px; }
+    .kv-key { font-size: 11px; color: var(--text-3); padding: 3px 0; }
+    .kv-val { font-size: 11px; font-weight: 500; padding: 3px 0; }
+
     /* Baseline comparison */
     .baseline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .baseline-card {
-      background: var(--surface); border: 1.5px solid var(--border);
-      border-radius: 10px; padding: 14px 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 16px;
     }
-    .baseline-card.missed {
-      border-color: #d1d5db;
-      background: #f9fafb;
-      opacity: 0.85;
-    }
-    .baseline-card.caught {
-      border-color: var(--accent);
-      background: #eff6ff;
-    }
+    .baseline-card.missed { background: var(--surface2); opacity: 0.8; }
+    .baseline-card.caught { border-color: var(--accent-mid); background: var(--accent-lt); }
     .baseline-tag {
       display: inline-block;
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-      padding: 2px 8px; border-radius: 100px; border: 1px solid;
-      margin-bottom: 10px;
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 2px 6px; border-radius: 3px; border: 1px solid; margin-bottom: 10px;
     }
-    .baseline-tag.old { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
-    .baseline-tag.new { background: #dbeafe; color: var(--accent); border-color: #93c5fd; }
+    .baseline-tag.old { background: var(--surface2); color: var(--text-3); border-color: var(--border2); }
+    .baseline-tag.new { background: var(--accent-lt); color: var(--accent); border-color: var(--accent-mid); }
     .baseline-big-number {
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 36px; font-weight: 700; line-height: 1;
-      margin-bottom: 6px;
+      font-size: 32px; font-weight: 600; line-height: 1;
+      letter-spacing: -0.02em; margin-bottom: 5px;
     }
-    .baseline-verdict-label {
-      font-size: 12px; font-weight: 600; margin-bottom: 4px;
-    }
-    .baseline-score { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+    .baseline-verdict-label { font-size: 11px; font-weight: 500; margin-bottom: 4px; }
+    .baseline-score { font-size: 11px; color: var(--text-3); line-height: 1.5; margin-top: 4px; }
     .baseline-why {
       margin-top: 10px;
-      background: #eff6ff; border: 1px solid #bfdbfe;
-      border-radius: 8px; padding: 10px 12px;
-      font-size: 12px; color: #1e40af; line-height: 1.6;
+      background: var(--accent-lt); border: 1px solid var(--accent-mid);
+      border-radius: 6px; padding: 10px 12px;
+      font-size: 11px; color: #1d4ed8; line-height: 1.6;
     }
 
-    /* Pipeline trace */
-    .trace-list { display: flex; flex-direction: column; gap: 6px; }
+    /* Pipeline trace — LangSmith-style */
+    .trace-list { display: flex; flex-direction: column; position: relative; padding-left: 2px; }
+    .trace-list::before {
+      content: ''; position: absolute;
+      left: 14px; top: 16px; bottom: 16px;
+      width: 1px; background: var(--border);
+    }
     .trace-node {
       display: flex; align-items: flex-start; gap: 10px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; padding: 10px 12px;
+      padding-bottom: 10px; position: relative;
     }
-    .trace-node.active { border-color: rgba(79,142,247,0.4); }
+    .trace-node:last-child { padding-bottom: 0; }
     .trace-icon {
-      width: 24px; height: 24px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; flex-shrink: 0;
-      background: var(--border);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px; font-weight: 500; flex-shrink: 0;
+      background: var(--surface); border: 1.5px solid var(--border);
+      color: var(--text-3); z-index: 1;
     }
-    .trace-icon.done { background: rgba(72,187,120,0.2); color: var(--green); }
-    .trace-icon.veto { background: rgba(245,101,101,0.2); color: var(--red); }
-    .trace-body { flex: 1; min-width: 0; }
-    .trace-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
-    .trace-detail { font-size: 11px; color: var(--muted); }
-    .trace-latency { font-size: 10px; color: var(--muted); margin-left: auto; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; }
+    .trace-icon.done { border-color: var(--green-mid); background: var(--green-lt); color: var(--green); }
+    .trace-icon.veto { border-color: var(--red-mid);   background: var(--red-lt);   color: var(--red); }
+    .trace-body {
+      flex: 1; min-width: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 7px; padding: 8px 12px;
+    }
+    .trace-node.active .trace-body { border-color: var(--border2); }
+    .trace-node.veto   .trace-body { border-color: var(--red-mid); background: var(--red-lt); }
+    .trace-name   { font-size: 11px; font-weight: 600; margin-bottom: 2px; color: var(--text); }
+    .trace-detail { font-size: 11px; color: var(--text-3); line-height: 1.5; }
+    .trace-latency {
+      font-size: 10px; color: var(--text-4);
+      font-family: 'IBM Plex Mono', monospace;
+      flex-shrink: 0; padding-top: 8px;
+    }
 
     /* LLM explanation */
     .explanation-box {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 8px; padding: 14px;
-      font-size: 13px; line-height: 1.7; color: var(--text);
+      font-size: 12px; line-height: 1.7; color: var(--text);
     }
-    .explanation-box.empty { color: var(--muted); font-style: italic; }
+    .explanation-box.empty { color: var(--text-3); font-style: italic; }
 
     /* Feedback */
     .feedback-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .feedback-row .btn { flex: 1; padding: 9px; font-size: 12px; min-width: 100px; }
+    .feedback-row .btn { flex: 1; padding: 8px; font-size: 11px; min-width: 90px; }
     .feedback-success {
-      padding: 10px 14px; border-radius: 8px;
-      background: var(--green-bg); color: var(--green);
-      font-size: 13px; font-weight: 600;
+      padding: 10px 14px; border-radius: 6px;
+      background: var(--green-lt); color: var(--green);
+      border: 1px solid var(--green-mid);
+      font-size: 12px; font-weight: 500;
     }
     .prior-feedback { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
     .prior-item {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 5px 10px; border-radius: 5px; background: var(--surface);
-      font-size: 12px;
+      padding: 5px 10px; border-radius: 5px;
+      background: var(--surface); border: 1px solid var(--border);
+      font-size: 11px;
     }
-    .prior-item .time { color: var(--muted); font-size: 11px; }
+    .prior-item .time { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
 
     /* PSI strip */
     .psi-strip {
@@ -367,33 +449,29 @@
       overflow: hidden;
     }
     .psi-header {
-      padding: 8px 16px; display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; display: flex; align-items: center; gap: 8px;
       cursor: pointer; font-size: 12px; font-weight: 600;
-      user-select: none;
+      user-select: none; color: var(--text-2);
     }
     .psi-header:hover { background: var(--surface2); }
+    .psi-header .psi-toggle-icon { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-4); }
     .psi-body {
       padding: 8px 16px 10px;
       display: flex; gap: 8px; flex-wrap: wrap;
     }
     .psi-chip {
-      padding: 5px 10px; border-radius: 6px; font-size: 11px;
+      padding: 5px 10px; border-radius: 5px; font-size: 11px;
       border: 1px solid var(--border); background: var(--bg);
       display: flex; flex-direction: column; gap: 1px; min-width: 80px;
     }
-    .psi-chip .psi-name { font-weight: 600; }
-    .psi-chip .psi-val  { color: var(--muted); }
-    .psi-chip.stable          { border-color: rgba(72,187,120,0.3); }
-    .psi-chip.moderate        { border-color: rgba(236,201,75,0.3); }
-    .psi-chip.action_required { border-color: rgba(245,101,101,0.3); }
+    .psi-chip .psi-name { font-weight: 500; color: var(--text-2); }
+    .psi-chip .psi-val  { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; }
+    .psi-chip.stable          { border-color: var(--green-mid); }
+    .psi-chip.moderate        { border-color: var(--yellow-mid); }
+    .psi-chip.action_required { border-color: var(--red-mid); }
 
-    .spinner { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; }
-    .err-msg { color: var(--red); font-size: 12px; padding: 12px; }
-
-    /* kv grid */
-    .kv-grid { display: grid; grid-template-columns: 130px 1fr; gap: 5px 10px; }
-    .kv-key { font-size: 12px; color: var(--muted); }
-    .kv-val { font-size: 12px; font-weight: 500; word-break: break-all; }
+    .spinner { color: var(--text-3); font-size: 11px; padding: 20px; text-align: center; }
+    .err-msg { color: var(--red); font-size: 11px; padding: 12px; }
   </style>
 </head>
 <body>
@@ -401,7 +479,7 @@
 <!-- ── HEADER ── -->
 <header>
   <div class="header-brand">
-    <h1>🛩️ <span>IoT</span> Anomaly Triage</h1>
+    <h1><span>IoT</span> Anomaly Triage</h1>
   </div>
   <nav>
     <a href="/">Showcase</a>
@@ -409,87 +487,93 @@
     <a href="/tutorial">Tutorial</a>
   </nav>
   <div class="header-right">
-    <button class="btn btn-demo" id="demo-btn" onclick="toggleDemo()">▶ Run Demo</button>
+    <button id="demo-btn" onclick="toggleDemo()">Simulate</button>
     <select id="env-select" class="env-select" onchange="onEnvChange()">
       <option value="https://iot-anomaly-triage-master.onrender.com" selected>Production</option>
       <option value="http://localhost:8000">Local Dev</option>
     </select>
-    <div id="status-dot"></div>
-    <span id="status-text">—</span>
-    <button class="btn btn-secondary" onclick="loadEngines()">↺</button>
+    <div class="status-indicator">
+      <div id="status-dot"></div>
+      <span id="status-text">—</span>
+    </div>
+    <button class="btn btn-secondary" onclick="loadEngines()" style="padding:4px 8px;font-size:11px">↺</button>
   </div>
 </header>
 
-<!-- ── FLEET BAR ── -->
+<!-- ── STATS BAR ── -->
 <div class="fleet-bar">
   <div class="fleet-stat">
     <div class="fleet-stat-value v-total" id="fs-total">—</div>
-    <div class="fleet-stat-label">Engines Monitored</div>
+    <div class="fleet-stat-label">Assets</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-alert" id="fs-alert">—</div>
-    <div class="fleet-stat-label">🔴 Needs Attention</div>
+    <div class="fleet-stat-label">Critical</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-monitor" id="fs-monitor">—</div>
-    <div class="fleet-stat-label">🟡 Early Warning</div>
+    <div class="fleet-stat-label">Warning</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-normal" id="fs-normal">—</div>
-    <div class="fleet-stat-label">🟢 All Clear</div>
+    <div class="fleet-stat-label">Nominal</div>
   </div>
   <div class="fleet-stat">
     <div class="fleet-stat-value v-muted" id="fs-precision">—</div>
-    <div class="fleet-stat-label">System Certainty</div>
+    <div class="fleet-stat-label">Avg Confidence</div>
   </div>
 </div>
 
-<!-- ── DEMO BANNER ── -->
+<!-- ── STREAM BAR ── -->
 <div id="demo-banner">
-  <span id="demo-status">⚡ Demo running…</span>
+  <div class="stream-dot"></div>
+  <span id="demo-status">Streaming…</span>
   <div class="demo-progress-track">
     <div class="demo-progress-fill" id="demo-progress" style="width:0%"></div>
   </div>
-  <span id="demo-detail" style="color:var(--muted);font-size:11px"></span>
+  <span id="demo-detail"></span>
 </div>
 
-<!-- ── MAIN ── -->
+<!-- ── WORKSPACE ── -->
 <div class="main">
 
-  <!-- LEFT: Engine Queue -->
+  <!-- LEFT: Asset Monitor -->
   <div class="queue-panel">
     <div class="panel-header">
-      <span id="queue-panel-label">Engine Monitoring</span>
+      <span id="queue-panel-label">Fleet Monitor</span>
       <div class="panel-header-right">
-        <span id="engine-count" style="color:var(--muted);font-size:12px;font-weight:400"></span>
+        <span id="engine-count"></span>
       </div>
     </div>
     <div class="queue-body" id="queue-body">
       <div class="queue-empty">
-        No engines yet.<br>
-        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to watch the system<br>monitor 3 real NASA turbofan engines live.</span>
+        No data streaming.<br>
+        <span>Click <strong>Simulate</strong> to load live NASA turbofan telemetry.</span>
       </div>
     </div>
   </div>
 
-  <!-- RIGHT: Engine Detail -->
+  <!-- RIGHT: Incident Analysis -->
   <div class="detail-panel">
-    <div class="panel-header">Engine Detail</div>
+    <div class="panel-header">
+      <span>Incident Analysis</span>
+    </div>
     <div class="detail-body" id="detail-body">
       <div class="detail-empty" id="detail-empty">
-        <div>← Select an engine to see why it was flagged</div>
-        <div class="hint">The system shows exactly how it made its decision —<br>flight conditions, sensor analysis, and a plain-English explanation</div>
+        <div style="font-size:20px;color:var(--border2);margin-bottom:6px">◈</div>
+        <div style="font-size:12px;color:var(--text-3)">Select an asset to view analysis</div>
+        <div class="hint">The pipeline trace, causal scores, and AI explanation<br>appear here when an asset is selected.</div>
       </div>
       <div id="detail-content" style="display:none"></div>
     </div>
   </div>
 
-  <!-- BOTTOM: PSI Strip -->
+  <!-- BOTTOM: Sensor Drift -->
   <div class="psi-strip">
     <div class="psi-header" onclick="togglePsi()">
-      📊 Sensor Drift (PSI)
-      <span id="psi-toggle">▶</span>
-      <span id="psi-summary" style="color:var(--muted);font-weight:400;margin-left:6px;font-size:11px"></span>
+      Sensor Drift (PSI)
+      <span class="psi-toggle-icon" id="psi-toggle">▶</span>
+      <span id="psi-summary" style="color:var(--text-3);font-weight:400;font-size:11px;margin-left:4px;font-family:'IBM Plex Mono',monospace"></span>
     </div>
     <div id="psi-body" style="display:none"></div>
   </div>
@@ -499,14 +583,14 @@
 <script>
 // ── State ────────────────────────────────────────────────────────────
 let selectedEngineId = null;
-let engines = [];          // EngineSummaryOut[]
-let engineAlerts = {};     // engineId → latest AlertEventOut
+let engines = [];
+let engineAlerts = {};
 let feedbackSubmitted = {};
 let autoRefreshTimer = null;
 let demoRunning = false;
 let demoAbort = null;
-let demoEngineIds = new Set();   // engine IDs actively in demo
-let demoLabels = {};             // engineId → human label (Near Failure etc.)
+let demoEngineIds = new Set();
+let demoLabels = {};
 
 const $ = id => document.getElementById(id);
 
@@ -557,14 +641,14 @@ function riskColor(cls) {
 }
 
 function riskLabel(cls) {
-  return cls === 'alert' ? '🔴 Needs Attention' : cls === 'monitor' ? '🟡 Early Warning' : '🟢 All Clear';
+  return cls === 'alert' ? 'CRITICAL' : cls === 'monitor' ? 'WARNING' : 'NOMINAL';
 }
 
 function badgeClass(cls) {
   return cls === 'alert' ? 'badge-alert' : cls === 'monitor' ? 'badge-monitor' : 'badge-normal';
 }
 
-// ── Human-readable flight regime names ───────────────────────────────
+// ── Flight regime names ───────────────────────────────────────────────
 const REGIME_NAMES = {
   'cluster_0': 'Ground ops / sea-level',
   'cluster_1': 'Low-altitude cruise',
@@ -586,7 +670,7 @@ function updateFleetBar() {
   const list = demoRunning
     ? engines.filter(e => demoEngineIds.has(e.engine_id))
     : engines;
-  const total = demoRunning ? engines.length : list.length;
+  const total   = demoRunning ? engines.length : list.length;
   const nAlert   = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'alert').length;
   const nMonitor = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'monitor').length;
   const nNormal  = list.filter(e => riskClass(e.latest_score, e.latest_decision) === 'normal').length;
@@ -597,7 +681,7 @@ function updateFleetBar() {
   $('fs-monitor').textContent = nMonitor || '0';
   $('fs-normal').textContent  = nNormal || '0';
   $('fs-precision').textContent = avgConf;
-  $('engine-count').textContent = demoRunning ? '(demo)' : (total ? `(${total})` : '');
+  $('engine-count').textContent = demoRunning ? 'sim' : (total ? total : '');
 }
 
 // ── Load engines ─────────────────────────────────────────────────────
@@ -611,13 +695,12 @@ async function loadEngines() {
     updateFleetBar();
     loadPsi();
 
-    // If an engine is selected, refresh its detail
     if (selectedEngineId !== null) {
       const eng = engines.find(e => e.engine_id === selectedEngineId);
       if (eng) loadEngineDetail(selectedEngineId, eng.latest_score, eng.latest_decision);
     }
   } catch (e) {
-    // No engines yet — that's fine
+    // No engines yet
   }
 }
 
@@ -626,13 +709,12 @@ function renderQueue() {
   if (!engines.length) {
     $('queue-body').innerHTML = `
       <div class="queue-empty">
-        No engines yet.<br>
-        <span style="font-size:12px">Click <strong>▶ Run Demo</strong> to watch the system<br>monitor 3 real NASA turbofan engines live.</span>
+        No data streaming.<br>
+        <span>Click <strong>Simulate</strong> to load live NASA turbofan telemetry.</span>
       </div>`;
     return;
   }
 
-  // In demo mode show only the 3 demo engines; otherwise show full fleet
   const visible = demoRunning
     ? engines.filter(e => demoEngineIds.has(e.engine_id))
     : engines;
@@ -640,22 +722,19 @@ function renderQueue() {
   const sorted = [...visible].sort((a, b) => b.latest_score - a.latest_score);
 
   const cards = sorted.map(eng => {
-    const cls   = riskClass(eng.latest_score, eng.latest_decision);
-    const color = riskColor(cls);
+    const cls    = riskClass(eng.latest_score, eng.latest_decision);
+    const color  = riskColor(cls);
     const barPct = Math.min(eng.latest_score * 100, 100).toFixed(1);
     const sel    = eng.engine_id === selectedEngineId ? ' selected' : '';
 
     if (demoRunning) {
-      // ── Demo story card: label + RUL prominent ────────────────────
-      const label   = demoLabels[eng.engine_id] || `Engine ${eng.engine_id}`;
-      const rul     = demoRulMap[eng.engine_id] ?? null;
-      const rulColor = rul === null ? 'var(--muted)' : rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
-      const rulText  = rul !== null
-        ? `${rul} cycles remaining`
-        : 'Streaming…';
-      const regime  = eng.regime ? `✈ ${regimeName(eng.regime)}` : '';
-      const cycle   = eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : '';
-      const meta    = [cycle, regime].filter(Boolean).join(' · ');
+      const label    = demoLabels[eng.engine_id] || `Engine ${eng.engine_id}`;
+      const rul      = demoRulMap[eng.engine_id] ?? null;
+      const rulColor = rul === null ? 'var(--text-4)' : rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
+      const rulText  = rul !== null ? `${rul} cycles remaining` : 'Streaming…';
+      const regime   = eng.regime ? regimeName(eng.regime) : '';
+      const cycle    = eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : '';
+      const meta     = [cycle, regime].filter(Boolean).join(' · ');
 
       return `
       <div class="engine-card risk-${cls}${sel}" onclick="selectEngine(${eng.engine_id})">
@@ -672,12 +751,11 @@ function renderQueue() {
           </div>
           <div class="score-val" style="color:${color}">${pct(eng.latest_score)}</div>
         </div>
-        <div class="engine-rul-inline" style="color:${rulColor}">⏱ ${rulText}</div>
-        ${meta ? `<div class="engine-meta" style="margin-top:3px"><span>${meta}</span></div>` : ''}
+        <div class="engine-rul-inline" style="color:${rulColor}">${rulText}</div>
+        ${meta ? `<div class="engine-meta" style="margin-top:2px"><span>${meta}</span></div>` : ''}
       </div>`;
     } else {
-      // ── Normal fleet card ─────────────────────────────────────────
-      const regime = eng.regime ? `<span title="Flight conditions">✈ ${regimeName(eng.regime)}</span>` : '';
+      const regime = eng.regime ? `<span>${regimeName(eng.regime)}</span>` : '';
       const cycle  = eng.latest_cycle ? `<span>Cycle ${eng.latest_cycle}</span>` : '';
       const alerts = `<span>${eng.alert_count} alert${eng.alert_count !== 1 ? 's' : ''}</span>`;
 
@@ -698,17 +776,8 @@ function renderQueue() {
     }
   }).join('');
 
-  const footer = demoRunning
-    ? `<div class="demo-queue-note">
-        Demo: 3 representative engines<br>
-        <span style="font-size:10px">${Math.max(0, engines.length - demoEngineIds.size)} other engines paused · stop demo to see all</span>
-       </div>`
-    : '';
-
-  $('queue-body').innerHTML = cards + footer;
-
-  // Update panel header label
-  $('queue-panel-label').textContent = demoRunning ? 'Demo Engines' : 'Engine Monitoring';
+  $('queue-body').innerHTML = cards;
+  $('queue-panel-label').textContent = 'Fleet Monitor';
 }
 
 // ── Select engine ─────────────────────────────────────────────────────
@@ -730,14 +799,12 @@ async function loadEngineDetail(engineId, score, decision) {
   const eng = engines.find(e => e.engine_id === engineId);
   if (!eng) return;
 
-  // Fetch latest alert for this specific engine
   let alert = null;
   try {
     const alerts = await get(`/alerts/recent?limit=1&engine_id=${engineId}`);
     alert = alerts[0] || null;
   } catch {}
 
-  // Fetch trace and explanation
   let trace = [];
   let explanation = null;
   let regime = eng.regime || null;
@@ -751,26 +818,24 @@ async function loadEngineDetail(engineId, score, decision) {
     } catch {}
   }
 
-  const cls = riskClass(score, decision);
-  const color = riskColor(cls);
+  const cls    = riskClass(score, decision);
+  const color  = riskColor(cls);
   const barPct = Math.min(score * 100, 100).toFixed(1);
 
-  // Extract data from trace nodes
-  const regimeNode    = trace.find(t => t.node_name === 'regime_classifier');
-  const causalNode    = trace.find(t => t.node_name === 'causal_reasoner');
-  const vetoNode      = trace.find(t => t.node_name === 'physics_veto');
-  const cacheNode     = trace.find(t => t.node_name === 'cache_lookup');
-  const decisionNode  = trace.find(t => t.node_name === 'decision_writer');
+  const regimeNode   = trace.find(t => t.node_name === 'regime_classifier');
+  const causalNode   = trace.find(t => t.node_name === 'causal_reasoner');
+  const vetoNode     = trace.find(t => t.node_name === 'physics_veto');
+  const cacheNode    = trace.find(t => t.node_name === 'cache_lookup');
+  const decisionNode = trace.find(t => t.node_name === 'decision_writer');
 
-  const causalScore  = causalNode?.output_state?.causal_score_refined ?? null;
-  const topSensors   = causalNode?.output_state?.top_sensors ?? [];
-  const vetoApplied  = vetoNode?.output_state?.physics_veto_applied ?? false;
-  const regimeLabel  = regimeNode?.output_state?.regime ?? regime ?? '—';
-  const fromCache    = cacheNode?.output_state?.from_cache ?? false;
-  const finalScore   = decisionNode?.output_state?.final_score ?? score;
-  const zScore       = engineAlerts[engineId]?.z_score ?? null;
+  const causalScore = causalNode?.output_state?.causal_score_refined ?? null;
+  const topSensors  = causalNode?.output_state?.top_sensors ?? [];
+  const vetoApplied = vetoNode?.output_state?.physics_veto_applied ?? false;
+  const regimeLabel = regimeNode?.output_state?.regime ?? regime ?? '—';
+  const fromCache   = cacheNode?.output_state?.from_cache ?? false;
+  const finalScore  = decisionNode?.output_state?.final_score ?? score;
+  const zScore      = engineAlerts[engineId]?.z_score ?? null;
 
-  // RUL from demo state if available
   const rul = demoRulMap[engineId] ?? null;
 
   const prior = await (async () => {
@@ -785,95 +850,88 @@ async function loadEngineDetail(engineId, score, decision) {
     <div class="detail-header">
       <div>
         <div class="detail-engine-name">Engine ${engineId}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:3px">
-          ${eng.latest_cycle ? `Cycle ${eng.latest_cycle} · ` : ''}Last seen ${fmt(eng.last_seen)}
+        <div class="detail-header-sub">
+          ${eng.latest_cycle ? `Cycle ${eng.latest_cycle}` : ''}${eng.latest_cycle && eng.last_seen ? ' · ' : ''}${eng.last_seen ? `Last seen ${fmt(eng.last_seen)}` : ''}
         </div>
       </div>
       <div class="detail-header-right">
-        <span class="engine-badge ${badgeClass(cls)}" style="font-size:12px;padding:4px 10px">${riskLabel(cls)}</span>
+        <span class="engine-badge ${badgeClass(cls)}" style="font-size:11px;padding:3px 8px">${riskLabel(cls)}</span>
       </div>
     </div>
 
-    <!-- Score + RUL cards -->
     <div class="score-grid">
       <div class="score-card">
-        <div class="score-card-label">Risk Score</div>
+        <div class="score-card-label">Anomaly Score</div>
         <div class="score-card-value" style="color:${color}">${pct(score)}</div>
         <div class="score-card-bar">
           <div class="score-card-bar-fill" style="width:${barPct}%;background:${color}"></div>
         </div>
         <div class="score-card-sub">
-          ${causalScore !== null ? `Sensor analysis: ${pct(causalScore)}` : ''}
+          ${causalScore !== null ? `Causal contribution: ${pct(causalScore)}` : ''}
           ${topSensors.length ? ` · ${topSensors.slice(0,3).join(', ')} out of range` : ''}
         </div>
       </div>
       <div class="rul-card score-card">
-        <div class="score-card-label">Estimated Time to Failure</div>
+        <div class="score-card-label">Remaining Useful Life</div>
         ${rul !== null
-          ? `<div class="rul-value">${rul} cycles</div>
-             <div class="rul-label">flight cycles until predicted failure</div>
-             <div class="score-card-bar" style="margin-top:8px">
+          ? `<div class="rul-value" style="color:${rul<30?'var(--red)':rul<80?'var(--yellow)':'var(--green)'}">${rul} cycles</div>
+             <div class="rul-label">estimated flight cycles to failure</div>
+             <div class="score-card-bar" style="margin-top:10px">
                <div class="score-card-bar-fill" style="width:${Math.min(100-rul/3,100).toFixed(0)}%;background:${rul<30?'var(--red)':rul<80?'var(--yellow)':'var(--green)'}"></div>
              </div>`
-          : `<div class="rul-value" style="color:var(--muted)">—</div>
-             <div class="rul-label">Run the demo to see a live countdown</div>`
+          : `<div class="rul-value" style="color:var(--text-4)">—</div>
+             <div class="rul-label">stream telemetry to compute RUL</div>`
         }
       </div>
     </div>
 
-    <!-- Flight conditions -->
     <div class="section">
-      <div class="section-title">Flight Conditions</div>
+      <div class="section-title">Operating Conditions</div>
       <div class="kv-grid">
-        <div class="kv-key">Flight conditions</div>
+        <div class="kv-key">Flight regime</div>
         <div class="kv-val">${regimeName(regimeLabel)}</div>
-        ${vetoApplied ? `<div class="kv-key">Physics check</div><div class="kv-val" style="color:var(--yellow)">⚠ Sensor coupling break detected — score adjusted down</div>` : ''}
+        <div class="kv-key">Cache hit</div>
+        <div class="kv-val" style="font-family:'IBM Plex Mono',monospace;font-size:11px">${fromCache ? 'Yes — calibrated from prior case' : 'No — evaluated fresh'}</div>
+        ${vetoApplied ? `<div class="kv-key">Physics gate</div><div class="kv-val" style="color:var(--yellow)">Sensor coupling break — score reduced</div>` : ''}
       </div>
     </div>
 
-    <!-- Baseline comparison (only if we have z_score from a live ingest) -->
     ${zScore !== null ? `
     <div class="section">
-      <div class="section-title">Approach Comparison</div>
+      <div class="section-title">Baseline Comparison</div>
       <div class="baseline-grid">
         <div class="baseline-card missed">
-          <div class="baseline-tag old">Isolation Forest baseline</div>
-          <div class="baseline-big-number" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'#9ca3af'}">${pct(zScore)}</div>
-          <div class="baseline-verdict-label" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'#6b7280'}">
-            ${zScore >= 0.6 ? '⚠ Flagged' : zScore >= 0.3 ? '~ Borderline' : '✗ Called it normal'}
+          <div class="baseline-tag old">Global Z-score</div>
+          <div class="baseline-big-number" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'var(--text-4)'}">${pct(zScore)}</div>
+          <div class="baseline-verdict-label" style="color:${zScore>=0.6?'var(--red)':zScore>=0.3?'var(--yellow)':'var(--text-3)'}">
+            ${zScore >= 0.6 ? 'Flagged' : zScore >= 0.3 ? 'Borderline' : 'No detection'}
           </div>
-          <div class="baseline-score">Global z-score — same threshold for every engine regardless of altitude or speed</div>
+          <div class="baseline-score">Single global threshold — ignores flight regime</div>
         </div>
         <div class="baseline-card caught">
-          <div class="baseline-tag new">Causal pipeline</div>
+          <div class="baseline-tag new">Causal Pipeline</div>
           <div class="baseline-big-number" style="color:${color}">${pct(score)}</div>
           <div class="baseline-verdict-label" style="color:${color}">${riskLabel(cls)}</div>
-          <div class="baseline-score">Regime-aware causal — calibrated for ${regimeName(regimeLabel)} flight condition</div>
+          <div class="baseline-score">Regime-aware — calibrated for ${regimeName(regimeLabel)}</div>
         </div>
       </div>
       ${zScore < 0.3 && score >= 0.3 ? `
       <div class="baseline-why">
-        💡 At <strong>${regimeName(regimeLabel)}</strong>, sensors read differently than the global average — the baseline sees "normal" and stays silent.
-        The causal pipeline conditions on this flight regime, making the anomaly visible where the baseline misses it.
+        At <strong>${regimeName(regimeLabel)}</strong>, sensors read outside global norms by design — the z-score baseline sees normal and stays silent.
+        The causal pipeline conditions on this operating regime, surfacing the anomaly.
       </div>` : ''}
     </div>` : ''}
 
-    <!-- How the system decided -->
     ${trace.length ? `
     <div class="section">
-      <div class="section-title">How the System Decided</div>
+      <div class="section-title">Pipeline Trace</div>
       <div class="trace-list">
         ${trace.map((node, i) => {
-          const icons = {
-            ingest_validator: '✓', regime_classifier: '⚙',
-            causal_reasoner: '🔗', physics_veto: '🛡',
-            cache_lookup: '🔍', llm_explainer: '🤖', decision_writer: '⚖'
-          };
-          const details = formatTraceDetail(node);
           const isVeto = node.node_name === 'physics_veto' && node.output_state?.physics_veto_applied;
+          const details = formatTraceDetail(node);
           return `
           <div class="trace-node ${isVeto ? 'veto' : 'active'}">
-            <div class="trace-icon ${isVeto ? 'veto' : 'done'}">${icons[node.node_name] || i+1}</div>
+            <div class="trace-icon ${isVeto ? 'veto' : 'done'}">${i+1}</div>
             <div class="trace-body">
               <div class="trace-name">${formatNodeName(node.node_name)}</div>
               <div class="trace-detail">${details}</div>
@@ -884,25 +942,23 @@ async function loadEngineDetail(engineId, score, decision) {
       </div>
     </div>` : ''}
 
-    <!-- Why this alert fired -->
     <div class="section">
-      <div class="section-title">Why This Alert Fired</div>
+      <div class="section-title">Root Cause Analysis</div>
       <div class="explanation-box ${explanation ? '' : 'empty'}">
-        ${explanation || 'The AI explanation runs automatically when risk exceeds 30%. Select an engine that\'s in Early Warning or Needs Attention to see it.'}
+        ${explanation || 'AI explanation is generated when anomaly score exceeds 30%. Select an asset in Warning or Critical state to see it.'}
       </div>
     </div>
 
-    <!-- Was this alert correct? -->
     <div class="section">
-      <div class="section-title">Was This Alert Correct?</div>
-      ${!alertId ? '<div style="color:var(--muted);font-size:12px">No alert on record yet — readings are still being processed.</div>' :
+      <div class="section-title">Alert Classification</div>
+      ${!alertId ? '<div style="color:var(--text-3);font-size:11px">No alert on record — readings are still being evaluated.</div>' :
         alreadyFeedback
-          ? `<div class="feedback-success">✓ Feedback recorded: ${alreadyFeedback === 'TRUE_POSITIVE' ? 'Yes, confirmed fault' : alreadyFeedback === 'FALSE_POSITIVE' ? 'No, false alarm' : 'Not sure yet'}</div>`
-          : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Your feedback trains the system to be more accurate over time.</div>
+          ? `<div class="feedback-success">Classification recorded: ${alreadyFeedback === 'TRUE_POSITIVE' ? 'True anomaly' : alreadyFeedback === 'FALSE_POSITIVE' ? 'False positive' : 'Deferred'}</div>`
+          : `<div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Classify this alert to improve detection accuracy over time.</div>
              <div class="feedback-row">
-               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}', ${engineId}, 'TRUE_POSITIVE')">✅ Yes, real fault</button>
-               <button class="btn btn-danger" onclick="submitFeedback('${alertId}', ${engineId}, 'FALSE_POSITIVE')">❌ False alarm</button>
-               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}', ${engineId}, 'UNCERTAIN')">❓ Not sure yet</button>
+               <button class="btn btn-ok"     onclick="submitFeedback('${alertId}', ${engineId}, 'TRUE_POSITIVE')">Confirm — true anomaly</button>
+               <button class="btn btn-danger" onclick="submitFeedback('${alertId}', ${engineId}, 'FALSE_POSITIVE')">Dismiss — false positive</button>
+               <button class="btn btn-warn"   onclick="submitFeedback('${alertId}', ${engineId}, 'UNCERTAIN')">Defer — needs review</button>
              </div>`
       }
       ${prior.length ? `
@@ -910,7 +966,7 @@ async function loadEngineDetail(engineId, score, decision) {
         ${prior.map(p => `
           <div class="prior-item">
             <span class="engine-badge ${p.label==='TRUE_POSITIVE'?'badge-alert':p.label==='FALSE_POSITIVE'?'badge-normal':'badge-monitor'}">
-              ${p.label==='TRUE_POSITIVE'?'Confirmed fault':p.label==='FALSE_POSITIVE'?'False alarm':'Not sure'}
+              ${p.label==='TRUE_POSITIVE'?'True anomaly':p.label==='FALSE_POSITIVE'?'False positive':'Deferred'}
             </span>
             <span class="time">${fmt(p.submitted_at)}</span>
           </div>`).join('')}
@@ -921,13 +977,13 @@ async function loadEngineDetail(engineId, score, decision) {
 
 function formatNodeName(name) {
   const labels = {
-    ingest_validator:  '1 · Data quality check',
-    regime_classifier: '2 · Identify flight conditions',
-    causal_reasoner:   '3 · Analyse sensor causality',
-    physics_veto:      '4 · Physics validation',
-    cache_lookup:      '5 · Check for similar past cases',
-    llm_explainer:     '6 · Generate plain-English explanation',
-    decision_writer:   '7 · Final decision',
+    ingest_validator:  'Data Quality Check',
+    regime_classifier: 'Operating Regime Classification',
+    causal_reasoner:   'Sensor Causality Analysis',
+    physics_veto:      'Physics Validation Gate',
+    cache_lookup:      'Prior Case Lookup',
+    llm_explainer:     'Root Cause Explanation',
+    decision_writer:   'Decision Writer',
   };
   return labels[name] || name;
 }
@@ -936,34 +992,32 @@ function formatTraceDetail(node) {
   const s = node.output_state || {};
   switch (node.node_name) {
     case 'ingest_validator':
-      return s.data_quality_ok ? '✓ All sensor readings valid' : '⚠ Some sensor readings missing or stale';
+      return s.data_quality_ok ? 'All sensor readings valid' : 'Some readings missing or stale';
     case 'regime_classifier':
-      return s.regime
-        ? `→ Engine is flying at: ${regimeName(s.regime)}`
-        : '→ Flight condition identified';
+      return s.regime ? `Regime identified: ${regimeName(s.regime)}` : 'Operating condition identified';
     case 'causal_reasoner': {
-      const sc = s.causal_score_refined != null ? `Risk contribution: ${pct(Number(s.causal_score_refined))}` : '';
-      const sns = s.top_sensors?.length ? `Sensors driving alert: ${s.top_sensors.slice(0,3).join(', ')}` : '';
-      return [sc, sns].filter(Boolean).join(' · ');
+      const sc  = s.causal_score_refined != null ? `Score: ${pct(Number(s.causal_score_refined))}` : '';
+      const sns = s.top_sensors?.length ? `Driving sensors: ${s.top_sensors.slice(0,3).join(', ')}` : '';
+      return [sc, sns].filter(Boolean).join(' · ') || 'Causal analysis complete';
     }
     case 'physics_veto':
       return s.physics_veto_applied
-        ? `⚠ Sensor coupling break detected — risk score adjusted down to avoid false alarm`
-        : `✓ Sensor physics look consistent — no adjustment needed`;
+        ? 'Sensor coupling break detected — anomaly score reduced to prevent false positive'
+        : 'Sensor physics consistent — no adjustment applied';
     case 'cache_lookup':
       return s.from_cache
-        ? `✓ Similar past case found — used to calibrate confidence`
-        : `No similar past case — evaluated fresh`;
+        ? 'Similar prior case found — used to calibrate confidence'
+        : 'No similar prior case — evaluated from scratch';
     case 'llm_explainer':
       return s.llm_explanation
-        ? `✓ AI wrote a plain-English explanation (see below)`
-        : `Skipped — risk was below 30%, no explanation needed`;
+        ? 'Root cause explanation generated'
+        : 'Skipped — score below explanation threshold';
     case 'decision_writer': {
-      const dec = s.final_decision === 'ALERT' ? 'Needs Attention'
-                : s.final_decision === 'UNCERTAIN' ? 'Early Warning'
-                : s.final_decision === 'NORMAL' ? 'All Clear' : s.final_decision || '';
-      const conf = s.final_confidence != null ? `· ${(Number(s.final_confidence)*100).toFixed(0)}% certain` : '';
-      return `→ ${dec} ${conf}`;
+      const dec  = s.final_decision === 'ALERT' ? 'CRITICAL'
+                 : s.final_decision === 'UNCERTAIN' ? 'WARNING'
+                 : s.final_decision === 'NORMAL' ? 'NOMINAL' : s.final_decision || '';
+      const conf = s.final_confidence != null ? `· ${(Number(s.final_confidence)*100).toFixed(0)}% confidence` : '';
+      return `${dec} ${conf}`;
     }
     default:
       return '';
@@ -1001,16 +1055,16 @@ async function loadPsi() {
     const nAct    = sensors.filter(s=>s.status==='action_required').length;
     $('psi-summary').textContent = sensors.length
       ? `${nStable} stable · ${nMod} moderate · ${nAct} action required`
-      : 'no data yet';
+      : 'no data';
 
     if (!psiOpen || !sensors.length) return;
-    const icons = { stable:'✅', moderate:'⚠️', action_required:'🔴' };
+    const statusLabel = { stable:'stable', moderate:'moderate', action_required:'action required' };
     $('psi-body').innerHTML = sensors
       .sort((a,b) => a.sensor.localeCompare(b.sensor))
       .map(s => `
         <div class="psi-chip ${s.status}">
-          <div class="psi-name">${icons[s.status]||'❓'} ${s.sensor}</div>
-          <div class="psi-val">PSI ${(s.psi??0).toFixed(4)}</div>
+          <div class="psi-name">${s.sensor}</div>
+          <div class="psi-val">PSI ${(s.psi??0).toFixed(4)} · ${statusLabel[s.status]||s.status}</div>
         </div>`).join('');
   } catch {}
 }
@@ -1025,14 +1079,11 @@ function onEnvChange() {
   loadEngines();
 }
 
-// ── Demo mode ─────────────────────────────────────────────────────────
-let demoRulMap = {};   // engineId → current estimated RUL
+// ── Demo / Simulation mode ─────────────────────────────────────────────
+let demoRulMap = {};
 
 async function toggleDemo() {
-  if (demoRunning) {
-    stopDemo();
-    return;
-  }
+  if (demoRunning) { stopDemo(); return; }
   await startDemo();
 }
 
@@ -1041,7 +1092,7 @@ function stopDemo() {
   demoEngineIds = new Set();
   demoLabels = {};
   if (demoAbort) { demoAbort(); demoAbort = null; }
-  $('demo-btn').textContent = '▶ Run Demo';
+  $('demo-btn').textContent = 'Simulate';
   $('demo-btn').classList.remove('running');
   $('demo-banner').classList.remove('visible');
   renderQueue();
@@ -1050,23 +1101,22 @@ function stopDemo() {
 
 async function startDemo() {
   const ok = await checkHealth();
-  if (!ok) { alert('Backend is offline. Cannot run demo.'); return; }
+  if (!ok) { alert('Backend is offline.'); return; }
 
   let demoData;
   try {
     demoData = await get('/demo/readings');
   } catch (e) {
-    alert('Demo data not available: ' + e.message);
+    alert('Simulation data unavailable: ' + e.message);
     return;
   }
 
   demoRunning = true;
   demoAbort = null;
-  $('demo-btn').textContent = '⏹ Stop Demo';
+  $('demo-btn').textContent = 'Stop';
   $('demo-btn').classList.add('running');
   $('demo-banner').classList.add('visible');
 
-  // Build per-engine reading queues
   const queues = demoData.map(eng => ({
     label: eng.label || `Engine ${eng.engine_id}`,
     engine_id: eng.engine_id,
@@ -1076,11 +1126,9 @@ async function startDemo() {
     idx: 0,
   }));
 
-  // Register which engines are demo engines so renderQueue can filter
   demoEngineIds = new Set(queues.map(q => q.engine_id));
   demoLabels = Object.fromEntries(queues.map(q => [q.engine_id, q.label]));
 
-  // Auto-select the first demo engine so user immediately sees live updates
   selectedEngineId = queues[0].engine_id;
   renderQueue();
 
@@ -1089,9 +1137,8 @@ async function startDemo() {
   let aborted = false;
   demoAbort = () => { aborted = true; };
 
-  $('demo-status').textContent = `⚡ Simulating ${totalReadings} real NASA flight cycles across ${queues.length} engines…`;
+  $('demo-status').textContent = `Streaming ${totalReadings} readings · ${queues.length} engines`;
 
-  // Rotate through engines, sending one reading per engine per tick
   while (queues.some(q => q.idx < q.readings.length) && !aborted) {
     for (const q of queues) {
       if (q.idx >= q.readings.length || aborted) continue;
@@ -1100,34 +1147,20 @@ async function startDemo() {
       q.idx++;
       sent++;
 
-      // Compute estimated RUL for this position
       const rul = q.rul_at_end + (q.total - q.idx);
       demoRulMap[q.engine_id] = rul;
 
-      $('demo-detail').textContent =
-        `Engine ${q.engine_id} · ${q.label} · Cycle ${Math.round(reading.cycle)} · RUL ~${rul}`;
       $('demo-progress').style.width = (sent / totalReadings * 100).toFixed(1) + '%';
 
       try {
         const result = await post('/ingest', reading);
-        // Store z_score for baseline comparison
         if (!engineAlerts[q.engine_id]) engineAlerts[q.engine_id] = {};
         engineAlerts[q.engine_id].z_score = result.z_score;
 
-        // Narrative banner message based on what just happened
         const cls = riskClass(result.combined_score, result.decision);
-        let narrative = '';
-        if (cls === 'alert') {
-          const missed = result.z_score < 0.3;
-          narrative = `🔴 Engine ${q.engine_id} (${q.label}) — fault detected! ~${rul} cycles to failure${missed ? ' · Old system would have missed this' : ''}`;
-        } else if (cls === 'monitor') {
-          narrative = `⚠ Engine ${q.engine_id} (${q.label}) — early warning, sensors starting to diverge. ~${rul} cycles remaining`;
-        } else {
-          narrative = `Engine ${q.engine_id} (${q.label}) — readings normal. ~${rul} cycles to failure`;
-        }
-        $('demo-detail').textContent = narrative;
+        $('demo-detail').textContent =
+          `Engine ${q.engine_id} · Cycle ${Math.round(reading.cycle)} · RUL ~${rul} · ${riskLabel(cls)}`;
 
-        // Push RUL into detail panel immediately if visible
         if (selectedEngineId === q.engine_id) {
           const rulEl = document.querySelector('.rul-value');
           const rulLabelEl = document.querySelector('.rul-label');
@@ -1135,10 +1168,9 @@ async function startDemo() {
             rulEl.textContent = rul + ' cycles';
             rulEl.style.color = rul < 30 ? 'var(--red)' : rul < 80 ? 'var(--yellow)' : 'var(--green)';
           }
-          if (rulLabelEl) rulLabelEl.textContent = 'flight cycles until predicted failure';
+          if (rulLabelEl) rulLabelEl.textContent = 'estimated flight cycles to failure';
         }
 
-        // Update engine in local state (or add if new)
         const existing = engines.find(e => e.engine_id === q.engine_id);
         const eng = {
           engine_id: q.engine_id,
@@ -1156,7 +1188,6 @@ async function startDemo() {
         renderQueue();
         updateFleetBar();
 
-        // Refresh detail panel if this engine is selected
         if (selectedEngineId === q.engine_id) {
           await loadEngineDetail(q.engine_id, result.combined_score, result.decision);
         }
@@ -1167,8 +1198,8 @@ async function startDemo() {
   }
 
   if (!aborted) {
-    $('demo-status').textContent = `✅ Demo complete — ${sent} readings streamed`;
-    $('demo-btn').textContent = '▶ Run Demo';
+    $('demo-status').textContent = `Stream complete — ${sent} readings processed`;
+    $('demo-btn').textContent = 'Simulate';
     $('demo-btn').classList.remove('running');
     demoRunning = false;
     setTimeout(() => $('demo-banner').classList.remove('visible'), 3000);
