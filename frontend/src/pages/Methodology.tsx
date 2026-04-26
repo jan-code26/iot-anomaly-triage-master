@@ -38,6 +38,47 @@ export function Methodology() {
         </p>
       </div>
 
+      {/* ── CMAPSS Dataset ──────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>NASA CMAPSS Benchmark</h2>
+        <Card>
+          <CardContent className="pt-5 pb-5">
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              The Commercial Modular Aero-Propulsion System Simulation (CMAPSS) models turbofan engines
+              running to failure under controlled fault conditions. Each engine starts healthy and degrades
+              until failure. The test set provides the final cycles of each engine and asks: how many cycles
+              remain before failure?
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3 mb-4">
+              {[
+                { ds: 'FD001', cond: '1 operating condition', fault: 'HPC degradation', engines: 100, color: 'var(--accent)' },
+                { ds: 'FD002', cond: '6 operating conditions', fault: 'HPC degradation', engines: 259, color: 'var(--status-warn)' },
+                { ds: 'FD003', cond: '1 operating condition', fault: 'Fan + HPC degradation', engines: 100, color: 'var(--accent-cyan)' },
+                { ds: 'FD004', cond: '6 operating conditions', fault: 'Fan + HPC degradation', engines: 248, color: 'var(--status-alert)' },
+              ].map(d => (
+                <div key={d.ds} className="rounded-lg p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-sm font-mono font-bold" style={{ color: d.color }}>{d.ds}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: 'var(--border)', color: 'var(--text-muted)' }}>{d.engines} engines</span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{d.cond}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{d.fault}</p>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-lg p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
+              <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>Why FD002 / FD004 are the hard datasets</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Six operating conditions (altitude × Mach × throttle combinations) create a multi-modal sensor
+                distribution. A global z-score baseline — trained on the full mixed distribution — produces 100%
+                false positive rates on both datasets (F1 = 0.000). Conditioning scores on the operating regime
+                cluster is the only approach that produces a meaningful triage signal.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       {/* ── Causal DAG ──────────────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Causal DAG</h2>
