@@ -1,0 +1,245 @@
+{
+  "n_clusters": 6,
+  "op_cols": [
+    "op_setting_1",
+    "op_setting_2",
+    "op_setting_3"
+  ],
+  "centroids": [
+    [
+      42.00297633377919,
+      0.840485183533955,
+      100.00000000000006
+    ],
+    [
+      20.002998953459734,
+      0.7005151933021416,
+      100.0000000000001
+    ],
+    [
+      25.003038027993,
+      0.6205018745313668,
+      59.99999999999965
+    ],
+    [
+      0.001504512680281067,
+      0.0004943436101459975,
+      100.00000000000009
+    ],
+    [
+      10.00297126976286,
+      0.2504950345849819,
+      100.0000000000001
+    ],
+    [
+      35.00304897349758,
+      0.8405005847953235,
+      100.00000000000009
+    ]
+  ],
+  "cluster_coefficients": {
+    "0": {
+      "sensor_4": {
+        "cause": "op_setting_1",
+        "coef": 1.8387499592425596,
+        "intercept": 1050.5695241483565,
+        "residual_std": 7.636746490212572
+      },
+      "sensor_11": {
+        "cause": "op_setting_2",
+        "coef": -2.154148225375676,
+        "intercept": 43.95931328968801,
+        "residual_std": 0.2387804058619037
+      },
+      "sensor_15": {
+        "cause": "op_setting_2",
+        "coef": 0.14178720733400058,
+        "intercept": 9.255884857167347,
+        "residual_std": 0.03751476715424945
+      },
+      "sensor_3": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 1354.463033883192,
+        "residual_std": 5.633290516816359
+      },
+      "sensor_9": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 8327.889811264677,
+        "residual_std": 18.01373621187284
+      }
+    },
+    "1": {
+      "sensor_4": {
+        "cause": "op_setting_1",
+        "coef": 1.8157330317351459,
+        "intercept": 1216.79838581724,
+        "residual_std": 7.793251704788894
+      },
+      "sensor_11": {
+        "cause": "op_setting_2",
+        "coef": 0.4121955436857537,
+        "intercept": 44.15943470387787,
+        "residual_std": 0.23793971173788012
+      },
+      "sensor_15": {
+        "cause": "op_setting_2",
+        "coef": 1.2595169403506643,
+        "intercept": 8.35037857235227,
+        "residual_std": 0.03894827391517635
+      },
+      "sensor_3": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 1485.5875474021175,
+        "residual_std": 5.7828820168335495
+      },
+      "sensor_9": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 8729.768692440284,
+        "residual_std": 17.209649668230902
+      }
+    },
+    "2": {
+      "sensor_4": {
+        "cause": "op_setting_1",
+        "coef": -5.392636407985855,
+        "intercept": 1185.1532166991303,
+        "residual_std": 6.808453501310017
+      },
+      "sensor_11": {
+        "cause": "op_setting_2",
+        "coef": -3.791820577790393,
+        "intercept": 39.154208932116624,
+        "residual_std": 0.20845928888339899
+      },
+      "sensor_15": {
+        "cause": "op_setting_2",
+        "coef": -0.7201592149757141,
+        "intercept": 11.360823714460565,
+        "residual_std": 0.04320548103554035
+      },
+      "sensor_3": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 1262.684786303424,
+        "residual_std": 5.280213288540457
+      },
+      "sensor_9": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 8015.498542864284,
+        "residual_std": 14.099026898561231
+      }
+    },
+    "3": {
+      "sensor_4": {
+        "cause": "op_setting_1",
+        "coef": 47.63754030000249,
+        "intercept": 1408.7892735201426,
+        "residual_std": 8.936105037488389
+      },
+      "sensor_11": {
+        "cause": "op_setting_2",
+        "coef": -8.904605866268206,
+        "intercept": 47.54618960283779,
+        "residual_std": 0.26385830337877114
+      },
+      "sensor_15": {
+        "cause": "op_setting_2",
+        "coef": -0.538998556547739,
+        "intercept": 8.442512422645464,
+        "residual_std": 0.03693296545338415
+      },
+      "sensor_3": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 1590.421137493784,
+        "residual_std": 6.021977838923257
+      },
+      "sensor_9": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 9062.83379288911,
+        "residual_std": 19.211393120526065
+      }
+    },
+    "4": {
+      "sensor_4": {
+        "cause": "op_setting_1",
+        "coef": 48.60042688975986,
+        "intercept": 825.1044535938781,
+        "residual_std": 8.455793908577602
+      },
+      "sensor_11": {
+        "cause": "op_setting_2",
+        "coef": 10.91701119038225,
+        "intercept": 42.75328509797647,
+        "residual_std": 0.2522865087253155
+      },
+      "sensor_15": {
+        "cause": "op_setting_2",
+        "coef": 2.1280051279593186,
+        "intercept": 8.131570738890627,
+        "residual_std": 0.038157866451148825
+      },
+      "sensor_3": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 1502.012059041502,
+        "residual_std": 5.789791344787663
+      },
+      "sensor_9": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 8785.43643651186,
+        "residual_std": 18.249381780277464
+      }
+    },
+    "5": {
+      "sensor_4": {
+        "cause": "op_setting_1",
+        "coef": -9.05546831543046,
+        "intercept": 1448.4997499586777,
+        "residual_std": 7.401285110116303
+      },
+      "sensor_11": {
+        "cause": "op_setting_2",
+        "coef": 2.118591547402464,
+        "intercept": 40.201686631659655,
+        "residual_std": 0.22999394874739143
+      },
+      "sensor_15": {
+        "cause": "op_setting_2",
+        "coef": -0.11596088864921623,
+        "intercept": 9.429763626973891,
+        "residual_std": 0.03815871000761851
+      },
+      "sensor_3": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 1366.713351997014,
+        "residual_std": 5.615317542516836
+      },
+      "sensor_9": {
+        "cause": "op_setting_3",
+        "coef": 0.0,
+        "intercept": 8356.103227572477,
+        "residual_std": 16.9879570393084
+      }
+    }
+  },
+  "blend_alpha_fd001": 0.6,
+  "blend_alpha_fd002": 1.0,
+  "alert_thresholds": {
+    "0": 0.3,
+    "1": 0.3,
+    "2": 0.3,
+    "3": 0.3,
+    "4": 0.3,
+    "5": 0.3
+  },
+  "alert_threshold_fd002": 0.3
+}

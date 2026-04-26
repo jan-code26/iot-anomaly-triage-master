@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -23,8 +24,9 @@ from backend.services.causal_scorer import compute_causal_score, save_dowhy_resu
 from backend.services.gtest_monitor import G_THRESHOLD, gtest_monitor
 from backend.services.psi_monitor import psi_monitor
 from backend.services.sensor_service import sensor_service
+from backend.cmapss_api import router as cmapss_router
 
-_DASHBOARD = Path(__file__).parent.parent / "dashboard"
+_FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 _DEMO_DATA_PATH = Path(__file__).parent / "demo_data.json"
 _demo_engines: list[dict] = []
 
@@ -54,26 +56,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# Frontend dashboard API routes (/api/*)
+# ---------------------------------------------------------------------------
+
+app.include_router(cmapss_router)
 
 # ---------------------------------------------------------------------------
-# Dashboard pages
+# React SPA static file serving (production build from frontend/dist/)
+# Mount /assets before the catch-all so Vite's hashed asset files are served.
 # ---------------------------------------------------------------------------
 
-@app.get("/")
-def home():
-    return FileResponse(_DASHBOARD / "showcase.html")
-
-@app.get("/dashboard")
-def dashboard():
-    return FileResponse(_DASHBOARD / "index.html")
-
-@app.get("/showcase")
-def showcase():
-    return FileResponse(_DASHBOARD / "showcase.html")
-
-@app.get("/tutorial")
-def tutorial():
-    return FileResponse(_DASHBOARD / "tutorial.html")
+if (_FRONTEND_DIST / "assets").exists():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(_FRONTEND_DIST / "assets")),
+        name="frontend_assets",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -135,9 +134,26 @@ def ingest(request: Request, reading: TelemetryReading):
                 f"(G={g_stat}, threshold={G_THRESHOLD}) — possible sensor fault"
             )
 
-    # --- PSI: feed current readings ---
+    # --- PSI: feed current readings and auto-reset on distribution shift ---
     for s in [f"sensor_{i}" for i in range(1, 22)]:
         psi_monitor.add_reading(s, filled.get(s))
+
+    shifted = [
+        f"sensor_{i}" for i in range(1, 22)
+        if psi_monitor.status(f"sensor_{i}") == "action_required"
+    ]
+    if shifted:
+        for s in shifted:
+            current_vals = list(psi_monitor._current[s])
+            if len(current_vals) >= 10:
+                psi_monitor.set_baseline(s, current_vals)
+        log.warning(
+            "psi_auto_reset",
+            extra={"sensors": shifted, "count": len(shifted)},
+        )
+        warnings.append(
+            f"Distribution shift detected on {len(shifted)} sensor(s) — baselines auto-reset"
+        )
 
     try:
         with engine.begin() as conn:
@@ -163,7 +179,8 @@ def ingest(request: Request, reading: TelemetryReading):
             z_score = compute_anomaly_score(reading_dict)
             causal_score, causal_details = compute_causal_score(reading_dict)
 
-            # Blend 50/50. In Phase 4 adjust weights based on lead-time results.
+            # 50/50 blend for live streaming (dataset-agnostic default).
+            # CMAPSS evaluation uses dataset-calibrated α values (0.60/1.00) — see cmapss_api.py.
             combined_score = round(0.5 * z_score + 0.5 * causal_score, 6)
             decision, confidence = make_decision(combined_score)
 
@@ -381,6 +398,20 @@ def submit_feedback(body: FeedbackRequest):
                     .where(alert_events.c.id == body.alert_event_id)
                     .values(decision=body.label, confidence=1.0)
                 )
+
+            # Count accumulated operator overrides; recommend retraining at multiples of 50
+            override_count = conn.execute(
+                select(sa_func.count()).select_from(human_feedback).where(
+                    human_feedback.c.label.in_(["TRUE_POSITIVE", "FALSE_POSITIVE"])
+                )
+            ).scalar_one()
+
+            if override_count >= 50 and override_count % 50 == 0:
+                log.warning(
+                    "retraining_recommended",
+                    extra={"override_count": override_count},
+                )
+
     except HTTPException:
         raise
     except Exception as exc:
@@ -393,6 +424,25 @@ def submit_feedback(body: FeedbackRequest):
         override=body.override,
         submitted_at=row["submitted_at"],
     )
+
+
+@app.get("/admin/retraining-status")
+def retraining_status():
+    """Return operator override count and whether batch retraining is recommended (threshold: 50)."""
+    try:
+        with engine.begin() as conn:
+            count = conn.execute(
+                select(sa_func.count()).select_from(human_feedback).where(
+                    human_feedback.c.label.in_(["TRUE_POSITIVE", "FALSE_POSITIVE"])
+                )
+            ).scalar_one()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {
+        "override_count": count,
+        "retraining_recommended": count >= 50,
+        "next_milestone": ((count // 50) + 1) * 50,
+    }
 
 
 @app.get("/alerts/recent", response_model=list[AlertEventOut])
@@ -599,3 +649,16 @@ def get_alert_feedback(alert_id: str):
         raise HTTPException(status_code=500, detail=str(exc))
 
     return [FeedbackOut(**dict(row)) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# SPA catch-all — must be registered last so API routes take priority
+# ---------------------------------------------------------------------------
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve React SPA index.html for all unmatched routes."""
+    index = _FRONTEND_DIST / "index.html"
+    if index.exists():
+        return FileResponse(str(index))
+    raise HTTPException(status_code=404, detail="Frontend not built. Run: cd frontend && npm run build")

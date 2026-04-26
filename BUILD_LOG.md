@@ -1942,3 +1942,308 @@ Post-revision cleanup session: resolved remaining [CITATION NEEDED] tags and app
 | 5 | Minor | Bransby & Jenkinson reference in irregular hybrid format | Reformatted to APA government report: Contract Research Report No. 166, Health and Safety Executive |
 
 **Files modified:** `paper/manuscript.md`
+
+---
+
+## Session — 2026-04-24 · Ops Center UI Rebuild (Phase 2 complete)
+
+Completed the full UI redesign of all three dashboard pages to match a production airline MRO ops center aesthetic.
+
+### `dashboard/index.html` — JS layer complete
+
+Added fabrication context layer (pure JS, no backend changes):
+- `tailFor(id)`, `airlineFor(id)`, `routeFor(id)` — cycles 20 pre-defined tail numbers, airline names, and routes for 100 engines
+- `woId(engineId, alertCount)` — work order ID string (e.g. WO-0403)
+- `costFor(rul)` — RUL cycles × $3,500/cycle → "$Xk avoided" string
+- `maintenanceAction(topSensors)` — sensor array → human-readable maintenance action
+
+Updated `updateFleetBar()`:
+- Now writes to `fsr-flight / fsr-maint / fsr-ground / fsr-p1` IDs in the fleet status row
+- Updates ops status chip (green "All systems nominal" / red "N P1 alerts active")
+- Calls new `updatePerfMetrics()` after each fleet update
+
+New `updatePerfMetrics()`:
+- Downtime saved: TP count × 8h / 80h cap
+- Cost avoided: sum of all RUL in `demoRulMap` × $3,500, capped at $500k
+- FP suppressed: count of FALSE_POSITIVE feedback labels
+- Operator acceptance: TP / (TP + FP) from `feedbackSubmitted`
+
+Replaced `renderQueue()` with work order card rendering:
+- Removed `demoEngineIds` filter — shows ALL engines, not just 3 demo engines
+- Streaming engines pin to top with `● Live` chip; rest sorted by score descending
+- Cards show tail number, airline, route, WO ID, priority badge (P1/P2/P3), maintenance action, RUL, cost
+
+Added `renderEventLog(engineId, cls, cycle)`:
+- Prepends event items to `#event-log` panel on each alert/warning reading
+- Removes placeholder item on first real event
+- Caps at 60 items
+
+Demo loop updates:
+- Demo status bar shows tail number instead of "Engine N"
+- Logs alert/monitor events to event log on every cycle
+- Calls `loadEngines()` every 10 readings to refresh full fleet
+
+`init()` now starts the ticking clock (1s interval → `#ops-clock`).
+
+Detail panel header now shows tail number as title (e.g. "N945YQ") with airline, route, and engine ID as subtitle.
+
+### `dashboard/showcase.html` — SensorGuard header + light theme
+
+- Replaced dark `:root` palette with light theme (identical to index.html variables)
+- Replaced `🛩️ IoT Anomaly Triage` navbar with SensorGuard dark header (logo SVG, brand name, nav tabs: Platform / Fleet Monitor / Docs)
+- Added Research org pill in header right
+- Updated jargon tooltip from dark to white bg
+- Updated Chart.js `CHART_DEFAULTS` tick/grid colors (#71717a / #e4e4e7)
+- Updated all chart dataset colors to light-appropriate equivalents
+- Updated inline SVG colors (grid lines, engine icon fills, text annotations)
+
+### `dashboard/tutorial.html` — SensorGuard header + light theme
+
+- Same `:root` swap + IBM Plex Mono import
+- Replaced `🛩️ IoT Anomaly Triage` navbar with SensorGuard dark header (Docs tab active)
+- Updated jargon tooltip to light theme
+- Fixed hardcoded rgba border colors in callout, verdict-card, llm-badge, live-panel using new `--*-mid` variables
+- Updated `causal-cell`, cluster table, math panel border colors to use CSS vars
+- Updated all 4 Chart.js chart colors (global z-score, regime scatter, causal bar, physics scatter)
+- Updated CENTROIDS color array to light-appropriate hex values
+
+**Files modified:** `dashboard/index.html`, `dashboard/showcase.html`, `dashboard/tutorial.html`
+
+---
+
+## Phase 3 — React Dashboard (2026-04-25)
+
+### Session summary
+
+Built a full React + Vite SPA in `frontend/` as a replacement for the deleted single-file HTML dashboards.
+
+### Stack
+
+- **Vite 8 + React 19 + TypeScript 6** — scaffolded with `npm create vite`
+- **Tailwind CSS v4** — configured via `@tailwindcss/vite` plugin (no `tailwind.config.js`; v4 uses `@import "tailwindcss"` in CSS)
+- **recharts** — all charts (BarChart, LineChart, ResponsiveContainer)
+- **@tanstack/react-query** — data fetching with 60s stale time
+- **react-router-dom v7** — BrowserRouter with 5 routes
+- **lucide-react** — icons
+
+### Architecture
+
+```
+frontend/src/
+  lib/
+    types.ts          — Engine, Alert, AblationRow, SensorTrace, etc.
+    utils.ts          — scoreColor, regimeName, relativeTime, cn
+    api.ts            — Typed mock client (drop-in swap to fetch() later)
+    mock/
+      fixtures.ts     — Deterministic RNG-generated mock data matching paper numbers
+  components/
+    ui/               — Card, Badge, ScoreBar, Sparkline
+    layout/           — Sidebar (persistent nav), TopBar (dataset switcher + dark toggle)
+  pages/
+    Overview.tsx      — KPI row, engine grid with sparklines, RUL histogram
+    Alerts.tsx        — Two-pane alert feed + detail (score breakdown, residuals, trace, feedback)
+    Engines.tsx       — Sortable engine table
+    EngineDetail.tsx  — 5-tab view: Sensors, Causal Residuals, Regime Timeline, Physics Veto, Trace
+    Methodology.tsx   — Interactive DAG SVG, α slider, W selector, ablation tables, centroid table
+    About.tsx         — Paper hero, key results, abstract, system overview, citation
+```
+
+### Key decisions
+
+- **Mock data layer** (`src/lib/api.ts` + `src/lib/mock/fixtures.ts`): all numbers from the paper are hardcoded as fixtures (ablation tables, regime centroids, α sweep, W sensitivity). A deterministic seeded LCG RNG generates engine/alert data so the UI is consistent across page reloads. Swapping to the real FastAPI backend requires only changing the `api.ts` implementation — all types and query keys stay the same.
+- **Tailwind v4 path aliases**: TypeScript 6 deprecated `baseUrl`; fixed by using `paths` without `baseUrl` in `tsconfig.app.json` (TS6 supports this directly) plus `resolve.alias` in `vite.config.ts`.
+- **Dark mode**: CSS custom properties (`--bg`, `--bg-card`, `--accent`, etc.) toggled via `.dark` class on `<html>`; React state + `useEffect` handles the toggle.
+
+### Files created / modified
+
+- `frontend/vite.config.ts` — added `@tailwindcss/vite`, path alias
+- `frontend/tsconfig.app.json` — added `paths` (no `baseUrl`, TS6 compatible)
+- `frontend/src/index.css` — CSS custom properties, Tailwind v4 `@import`
+- `frontend/src/App.tsx` — full app shell with router + QueryClient
+- All files under `frontend/src/lib/` and `frontend/src/pages/` — new
+- All files under `frontend/src/components/` — new
+
+### Build result
+
+```
+✓ 2355 modules transformed
+dist/assets/index.css   23 kB
+dist/assets/index.js   736 kB (recharts bundle; code-split later if needed)
+Built in 612ms
+```
+
+Dev server: `cd frontend && npm run dev` → http://localhost:5173
+
+---
+
+## Phase 4 — Real Backend Wiring + Render Deployment (2026-04-25)
+
+### What was built
+- **`backend/cmapss_api.py`** — New FastAPI router (`/api/*`) that loads CMAPSS test data (`data/raw/test_FD00X.txt`, `RUL_FD00X.txt`) through the real causal scoring pipeline at startup and caches results in memory. Exposes 5 endpoints: `GET /api/engines`, `GET /api/engines/{id}`, `GET /api/engines/{id}/traces`, `GET /api/alerts`, `POST /api/feedback`.
+- **`backend/main.py`** — Registered new router; replaced deleted dashboard routes with React SPA static file serving (`frontend/dist/`); added SPA catch-all for client-side routing.
+- **`frontend/src/lib/api.ts`** — Replaced all mock data generators with real `fetch()` calls against `/api/`. "Mock data" badge will disappear from the TopBar once the real backend is running.
+- **`frontend/vite.config.ts`** — Added `server.proxy` so `/api/*` calls during `npm run dev` proxy to `http://localhost:8000`.
+- **`.gitignore`** — Added exceptions for `data/raw/test_FD00*.txt`, `data/raw/RUL_FD00*.txt`, `data/processed/regime_coefficients.json` so Render has the CMAPSS test data and regime centroids.
+- **`render.yaml`** — Updated `buildCommand` to `pip install -r requirements.txt && cd frontend && npm ci && npm run build`; fixed `env` → `runtime`.
+
+### Local dev workflow (two terminals)
+```
+# Terminal 1 — FastAPI
+uvicorn backend.main:app --reload
+
+# Terminal 2 — Vite dev server (proxies /api/ to :8000)
+cd frontend && npm run dev
+# → http://localhost:5173
+```
+
+### Render deploy steps
+1. `git add data/raw/test_FD00*.txt data/raw/RUL_FD00*.txt data/processed/regime_coefficients.json`
+2. `git add -A && git commit -m "wire real backend + Render deploy"`
+3. `git push origin main`
+4. Render picks up `render.yaml` automatically — set env vars `DATABASE_URL`, `GROQ_API_KEY`, `LLM_PROVIDER=groq` in the Render dashboard.
+
+### Architecture
+- **Development**: Vite dev server (:5173) → proxies `/api/` → FastAPI (:8000)
+- **Production**: FastAPI serves both `/api/` (scoring pipeline) and `frontend/dist/` (React SPA) from the same Render URL
+- The `"Mock data"` badge in TopBar comes from `frontend/src/components/layout/TopBar.tsx` — it's still hardcoded; removing it is a cosmetic future task.
+
+### Build
+`cd frontend && npm run build` → ✓ 0 errors, 732 KB bundle
+
+---
+
+## Session — 2026-04-25: UI polish pass #2 — final 4 issues fixed
+
+### Issues fixed
+
+**1. Header "RUL X" → "X cycles to failure"**
+`EngineDetail.tsx` line ~86: Changed `Cycle {engine.latest_cycle} · RUL {engine.rul_at_end}` to `Cycle {engine.latest_cycle} · {engine.rul_at_end} cycles to failure`. Plain English for a non-engineer audience.
+
+**2. Detection Log raw node names**
+Added `friendlyNodeName()` to `EngineDetail.tsx` (same mapping as `Alerts.tsx`):
+- `ingest_validator` → "Sensor data validated"
+- `regime_classifier` → "Operating condition identified"
+- `causal_reasoner` → "Component health assessed"
+- `physics_veto` → "Sensor integrity checked"
+- `cache_lookup` → "Historical baseline retrieved"
+- `llm_explainer` → "Plain-English summary generated"
+- `decision_writer` → "Final decision recorded"
+
+Applied to the span rendering `node.node` in the Detection Log tab.
+
+**3. Wear Signals chart Y-axis (−225σ values)**
+Root cause: FALLBACK_COEFFICIENTS are fit on FD001 (one operating condition). FD002/FD004 engines span 6 conditions, so raw residuals can be far outside the FD001 model's range — dividing by FD001's residual_std makes normalized values extreme (±225σ possible).
+Fix: clamp display to ±10σ via `data.map(pt => ({ ...pt, residual: Math.max(-10, Math.min(10, pt.residual)) }))` and set `domain={[-10, 10]}` on YAxis. Added a yellow info banner for FD002/FD004 explaining the limitation.
+
+**4. Sensor Integrity chart Y-axis (0–16,000)**
+Root cause: product of two normalized residuals (each potentially ±225σ) times 6 gave enormous G-stat approximations.
+Fix: clamp computed G-stat to 60 (`Math.min(raw, 60)`) before charting, set `domain={[0, 60]}` on YAxis. Added same FD001 caveat banner for FD002/FD004 datasets.
+
+### Build
+`cd frontend && npm run build` → ✓ 0 errors, 744 KB bundle
+
+---
+
+## Session — 2026-04-26: Submission polish — bugs, static values, validation, constants
+
+### Frontend fixes
+
+**1. Placeholder metadata removed**
+- `frontend/index.html` `<title>` changed from `"frontend-temp"` → `"IoT Anomaly Triage — CMAPSS Fleet Monitor"`.
+- Added `<meta name="description">` for SEO.
+- `frontend/package.json` `name` → `"iot-anomaly-triage-frontend"`, `version` → `"1.0.0"`, added `"description"` and `"license"` fields.
+
+**2. Overview.tsx — static hardcoded values replaced with dataset maps**
+- `avgLead = 165` (same for all datasets) → `AVG_WARNING_LEAD: Record<Dataset, number>` = `{FD001: 165, FD002: 134, FD003: 147, FD004: 118}` (paper §4.2).
+- `fpRate` inline ternary → `FP_RATE: Record<Dataset, string>` constant map.
+- Detection rate string → `DETECTION_RATE: Record<Dataset, string>` constant map.
+- Tooltip hint for "Avg Warning Lead" now uses the actual dataset-specific value.
+- Removed duplicate `BarChart as BChart` import alias; replaced `<BChart>` with `<BarChart>` throughout.
+
+**3. Alerts.tsx — type safety**
+- `DecisionBadge({ d }: { d: string })` → `{ d: Decision }` (imports `Decision` type).
+- Removed stale comment `(was Physics Veto)`.
+
+**4. api.ts — missing error handling**
+- `postFeedback()` now checks `if (!res.ok) throw new Error(...)` so mutation errors surface in the UI.
+
+**5. ChatWidget.tsx — differentiated error messages**
+- `callChat()` returns a specific message for HTTP 503 ("AI assistant is temporarily unavailable") vs other errors.
+
+**6. Terminology standardised**
+- "Regime" column header in `Engines.tsx` → "Condition".
+- "Regime:" badge label in `EngineDetail.tsx` → "Condition:".
+- "Sensor Integrity" used consistently everywhere for the physics-veto tab/section.
+
+**7. EngineDetail.tsx — Recharts formatter type**
+- Wear Signals `formatter` annotated `(v: unknown)` to satisfy Recharts `ValueType | undefined` signature.
+
+### Backend fixes
+
+**8. cmapss_api.py — real G-statistic computation**
+- `_compute_gstat(edf)` helper computes the actual G-statistic from the last 100 cycles of `sensor_11`/`sensor_15` using the same contingency-table formula as `GTestMonitor`.
+- `_get_dataset()` now calls `_compute_gstat()` per engine; `physics_veto_active`, `g_statistic`, and `veto_factor` fields in alert objects reflect real values instead of `False / 0.0 / 1.0`.
+- `_build_trace()` signature extended with `g_stat` and `veto_factor`; physics_veto node summary now says "G-stat X.XX — veto applied / coupling intact".
+
+**9. cmapss_api.py — input validation**
+- `_VALID_DATASETS = frozenset({"FD001","FD002","FD003","FD004"})` constant added.
+- `_validate_dataset()` helper raises HTTP 400 for unknown dataset strings (prevents path traversal via `test_{dataset}.txt`).
+- All four GET endpoints call `_validate_dataset()`.
+- `min_score` query parameter bounded `ge=0.0, le=1.0`; `regime` bounded `ge=0, le=5`.
+
+**10. cmapss_api.py — chat endpoint HTTP status**
+- Chat endpoint `except` block now raises `HTTPException(503)` instead of returning HTTP 200 with an error string in the body; LLM errors are logged at ERROR level.
+
+**11. nodes.py — silent exceptions replaced with logging**
+- Added `import logging` and `logger = logging.getLogger(__name__)`.
+- `_load_blend_alpha()` fallback logs at WARNING instead of swallowing silently.
+- `_write_trace()` failure logs at DEBUG (best-effort, non-critical).
+- `decision_writer()` DB update failure logs at WARNING.
+
+**12. main.py — alpha blend clarified**
+- Comment updated: "50/50 for live streaming (dataset-agnostic). CMAPSS uses calibrated α values — see cmapss_api.py."
+
+**13. backend/config.py — SCORING_CONFIG constants created**
+- New file centralising all magic numbers: `BLEND_ALPHA`, `ALERT_THRESHOLD`, `UNCERTAIN_THRESHOLD`, `G_TEST_CHI2_CRITICAL`, `G_TEST_BUFFER_SIZE`, `VETO_MAX_REDUCTION`, `CAUSAL_SENSORS`, `RESIDUAL_NOISE_FLOOR`, `COLD_START_CYCLES`.
+
+### Build
+`cd frontend && npm run build` → ✓ 0 TypeScript errors, 757 KB bundle
+
+---
+
+## Session 2026-04-26 — Proposal Gap-Fix Pass
+
+Three discrepancies identified between the original project proposal and the live implementation were closed.
+
+### Gap 1 — About.tsx: DoWhy role accurately described
+
+**Problem:** The "Causal DAG Scoring" card in the About page implied DoWhy drives per-request inference. In reality, DoWhy is used only at startup for DAG structure validation; live inference uses sklearn LinearRegression with pre-computed FALLBACK_COEFFICIENTS (DoWhy v0.11 requires ≥2 rows per call; live readings are single rows).
+
+**Fix:** Updated the card body to: "Causal DAG structure defined and validated with DoWhy. Per-request scoring uses regime-conditioned LinearRegression with pre-computed coefficients for low-latency inference (DoWhy v0.11 requires ≥2 rows per call; live readings arrive one at a time). Anomaly score = residual from causally-predicted value, not global mean deviation."
+
+**File:** `frontend/src/pages/About.tsx`
+
+---
+
+### Gap 2 — main.py: 50-override auto-retraining trigger wired
+
+**Problem:** The proposal promised automatic retraining recommendations after 50 operator overrides (TRUE_POSITIVE + FALSE_POSITIVE labels). The feedback endpoint stored labels but never counted them.
+
+**Fix:** After every `human_feedback` INSERT, query the total override count. If count ≥ 50 and `count % 50 == 0`, emit `log.warning("retraining_recommended", ...)`. This fires exactly once at milestones 50, 100, 150, etc.
+
+Also added `GET /admin/retraining-status` endpoint returning `{"override_count": N, "retraining_recommended": bool, "next_milestone": N}`.
+
+**File:** `backend/main.py`
+
+---
+
+### Gap 3 — main.py: PSI > 0.2 auto-cache-invalidation wired
+
+**Problem:** The proposal promised automatic baseline invalidation when PSI exceeded 0.2 (population stability index indicating significant distribution shift). `psi_monitor.add_reading()` was called for all 21 sensors in the ingest endpoint, but no action was taken when sensors crossed the "action_required" threshold.
+
+**Fix:** Immediately after the `add_reading` loop, check each sensor's status. Any sensor at "action_required" gets its baseline reset to the current rolling window via `psi_monitor.set_baseline(s, current_vals)` (requires ≥10 readings to avoid noise). Resets are logged at WARNING and a human-readable warning is appended to the response.
+
+**File:** `backend/main.py`
+
+### Build
+`cd frontend && npm run build` → ✓ 0 TypeScript errors, 757 KB bundle (no regressions)

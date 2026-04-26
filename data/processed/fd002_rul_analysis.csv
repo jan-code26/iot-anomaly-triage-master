@@ -1,0 +1,2 @@
+n_alerted,n_not_alerted,median_rul_alerted,median_rul_not_alerted,mean_rul_alerted,mean_rul_not_alerted,wilcoxon_p
+170,89,54.0,103.0,66.02941176470588,110.13483146067416,8.28151983455037e-11

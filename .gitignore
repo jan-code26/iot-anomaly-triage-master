@@ -210,7 +210,20 @@ __marimo__/
 # Mac OS
 .DS_Store
 
-# Dataset files (large, not committed)
-data/raw/
-data/processed/
+# Dataset files — training data is large; test data + processed coefficients are committed
+data/raw/train_FD001.txt
+data/raw/train_FD002.txt
+data/raw/train_FD003.txt
+data/raw/train_FD004.txt
 *.zip
+
+# Allow CMAPSS test data (needed by Render for /api/ endpoints)
+!data/raw/test_FD001.txt
+!data/raw/test_FD002.txt
+!data/raw/test_FD003.txt
+!data/raw/test_FD004.txt
+!data/raw/RUL_FD001.txt
+!data/raw/RUL_FD002.txt
+!data/raw/RUL_FD003.txt
+!data/raw/RUL_FD004.txt
+!data/processed/regime_coefficients.json

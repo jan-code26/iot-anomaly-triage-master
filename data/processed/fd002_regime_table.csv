@@ -1,0 +1,4 @@
+Variant,Coverage,N_alert,Mean,SD,Median,Precision,Recall,F1,Wilcoxon-p,Fisher-p
+Global z-score (FD001 means),100%,259,211.2,47.8,203.0,0.000,0.000,0.000,—,—
+Retrained z-score (FD002 means),100%,259,209.1,47.8,201.0,0.000,0.000,0.000,0.548,1.000
+Regime-aware causal,66%,170,167.5,86.6,179.5,0.247,0.321,0.279,0.000,0.000

@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #fafafa;
+  --bg-card: #ffffff;
+  --bg-sidebar: #f4f4f5;
+  --border: #e4e4e7;
+  --text-primary: #09090b;
+  --text-muted: #71717a;
+  --accent: #4f46e5;
+  --accent-light: #e0e7ff;
+  --accent-cyan: #06b6d4;
+  --status-ok: #16a34a;
+  --status-warn: #d97706;
+  --status-alert: #dc2626;
+  --status-veto: #9333ea;
+  color-scheme: light dark;
+}
+
+.dark {
+  --bg: #09090b;
+  --bg-card: #18181b;
+  --bg-sidebar: #0f0f11;
+  --border: #27272a;
+  --text-primary: #fafafa;
+  --text-muted: #a1a1aa;
+  --accent: #818cf8;
+  --accent-light: #1e1b4b;
+  --accent-cyan: #22d3ee;
+  --status-ok: #22c55e;
+  --status-warn: #f59e0b;
+  --status-alert: #f87171;
+  --status-veto: #c084fc;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+#root { display: flex; min-height: 100vh; }

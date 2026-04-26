@@ -16,9 +16,12 @@ affects the main /ingest response.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import func as sa_func
 from sqlalchemy import insert, select, update
@@ -54,7 +57,8 @@ def _load_blend_alpha(is_multi_cluster: bool) -> float:
         data = json.loads(_COEFF_FILE.read_text())
         key = "blend_alpha_fd002" if is_multi_cluster else "blend_alpha_fd001"
         return float(data.get(key, data.get("blend_alpha", 0.5)))
-    except Exception:
+    except Exception as exc:
+        logger.warning("Could not load blend alpha from %s, using 0.5 fallback: %s", _COEFF_FILE, exc)
         return 0.5
 
 
@@ -90,8 +94,8 @@ def _write_trace(
                     latency_ms=latency_ms,
                 )
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Trace write skipped for node=%s alert=%s: %s", node_name, alert_event_id, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -424,13 +428,15 @@ def _call_llm(state: dict) -> str:
         )
         return resp.choices[0].message.content.strip()
 
-    elif provider == "gemini":
-        import google.generativeai as genai  # noqa: PLC0415
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-        model = genai.GenerativeModel(
-            os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+    elif provider == "anthropic":
+        import anthropic  # noqa: PLC0415
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        msg = client.messages.create(
+            model=os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+            max_tokens=150,
+            messages=[{"role": "user", "content": _build_prompt(state)}],
         )
-        return model.generate_content(_build_prompt(state)).text.strip()
+        return msg.content[0].text.strip()
 
     else:
         raise ValueError(f"Unknown LLM_PROVIDER: {provider!r}")
@@ -540,8 +546,8 @@ def decision_writer(state: dict) -> dict:
                     cache_hit=from_cache,
                 )
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to update alert_events row %s: %s", alert_event_id, exc)
 
     out = {
         "final_score": final_score,

@@ -1,0 +1,7 @@
+Step,Dataset,Coverage,Mean LT,Median LT,Precision,Recall,F1
+Step 0: Baseline,FD001,47%,131.9,128.0,0.447,0.284,0.347
+Step 1: +Aggregation fix,FD001,78%,164.4,171.0,0.192,0.405,0.261
+Step 2: +Learned α=0.70,FD001,64%,170.7,187.5,0.203,0.265,0.230
+Step 0: Baseline,FD002,100%,211.2,203.0,0.000,0.000,0.000
+Step 1: +Aggregation fix,FD002,100%,211.2,203.0,0.000,0.000,0.000
+Step 2: +Learned α=1.00,FD002,66%,167.5,179.5,0.247,0.321,0.279

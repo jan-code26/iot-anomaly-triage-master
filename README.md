@@ -1,49 +1,74 @@
-# Don't Trust the Sensors — IoT Anomaly Triage
+# Don't Trust the Sensors — Regime-Aware Causal Anomaly Triage for Industrial IoT
 
-An agentic IoT anomaly triage system for turbofan engine sensors.
-Built for INFO 7390 (Northeastern University) using NASA CMAPSS data.
+**INFO 7390 · Northeastern University · Jahnavi Patel**
 
-- Ingests real-time sensor readings, forward-fills missing values, and detects anomalies
-- Scores each reading using a **blended causal + z-score model** conditioned on a KMeans operating-regime classifier (6 regimes from CMAPSS FD002)
-- Monitors sensor distribution drift with Population Stability Index (PSI)
-- Validates physical sensor coupling with a G-test grounded in the isentropic compression relation (sensor_11 / sensor_15)
-- Runs a 7-node LangGraph agent per alert: regime classification → causal scoring → physics veto → cache lookup → LLM explanation → decision write
-- Returns NORMAL / UNCERTAIN / ALERT decisions with per-sensor causal residuals and LLM-generated plain-English explanations
-- Operator feedback loop: TRUE_POSITIVE / FALSE_POSITIVE / UNCERTAIN labels adjust future confidence via the `cache_lookup` node
-- HTML dashboard for live alert feed, LLM explanation display, and operator feedback
+An agentic anomaly triage system for turbofan engine sensor streams. The system detects anomalies using a causal scoring model conditioned on operating regime, validates readings against a physics-based sensor coupling test, and generates operator-readable explanations via a 7-node LangGraph agent.
+
+Evaluated on the [NASA CMAPSS benchmark](https://www.nasa.gov/intelligent-systems-division) across all four sub-datasets (FD001–FD004).
+
+---
+
+## Key Results
+
+| Metric | Value | Dataset |
+|--------|-------|---------|
+| Coverage vs Isolation Forest | **4.1×** (69% vs 17%) | FD001 |
+| Best F1 | **0.352** | FD004 |
+| False positive rate — global z-score baseline | **100%** (F1 = 0.000) | FD002, FD004 |
+| False positive rate — regime-aware causal | **34–75%** (F1 = 0.279–0.352) | FD002, FD004 |
+| Mean alert lead time vs Isolation Forest | **165 vs 107 cycles (+53%)** | FD001 |
+
+---
+
+## Live Demo
+
+- **Application:** [https://iot-anomaly-triage.onrender.com](https://iot-anomaly-triage.onrender.com) *(may take ~30 s to wake from free-tier sleep)*
+- **API docs:** [https://iot-anomaly-triage.onrender.com/docs](https://iot-anomaly-triage.onrender.com/docs)
+
+---
+
+## Problem Statement
+
+Industrial IoT anomaly detectors commonly compute z-scores against global training-set means. A turbofan engine running at high altitude produces temperature and pressure readings that are *normal for that regime* but anomalous relative to sea-level means — triggering false alarms unrelated to engine health.
+
+This project addresses that with three layers:
+
+1. **Regime-aware causal scoring** — anomaly score is the residual from a causally-predicted value conditioned on the current operating regime (KMeans k=6 on altitude/Mach/throttle settings), not a deviation from the global mean.
+2. **Physics-based veto** — a G-test on the sensor_11 / sensor_15 coupling (isentropic compression relation) distinguishes real degradation from sensor faults.
+3. **Human-in-the-loop** — operators submit TRUE_POSITIVE / FALSE_POSITIVE / UNCERTAIN labels; the cache_lookup node applies a confidence penalty to engines with repeated false-positive histories.
 
 ---
 
 ## Architecture
 
 ```
-CMAPSS Data
-    │
-    ▼
-simulate_stream.py ──POST /ingest──► FastAPI (backend/main.py)
-                                          │
-                              ┌───────────┼────────────────┐
-                              ▼           ▼                ▼
-                       SensorService  PSIMonitor     GTestMonitor
-                       (forward-fill) (drift detect) (coupling check)
-                              │
-                    ┌─────────┴──────────────────┐
-                    ▼                            ▼
-             anomaly.py                  causal_scorer.py
-             (z-score scorer)            (residual scorer —
-                    │                    conditions on op_settings)
-                    └─────────┬──────────────────┘
-                              │ blended 50/50
-                              ▼
-                    ┌─────────┴──────────┐
-                    ▼                    ▼
-             telemetry_windows      alert_events
-                    │                    │
-                    ▼              dowhy_results
-              Neon PostgreSQL (8 tables)
+Sensor stream (POST /ingest)
+        │
+        ▼
+  FastAPI backend
+  ├── SensorService      forward-fill missing values (5-cycle stale threshold)
+  ├── PSIMonitor         distribution drift detection (PSI > 0.2 = auto-reset)
+  ├── GTestMonitor       sensor coupling validation (χ²(df=16) = 26.30 critical)
+  ├── anomaly.py         z-score against per-regime rolling mean
+  └── causal_scorer.py   residual from LinearRegression on causal DAG branches
+        │
+        ▼ blended score (α · causal + (1-α) · z-score)
+        │
+  LangGraph 7-node agent
+  ┌─────────────────────────────────────────────┐
+  │ ingest_validator → regime_classifier        │
+  │   → causal_reasoner → physics_veto          │
+  │   → cache_lookup → llm_explainer            │
+  │   → decision_writer                         │
+  └─────────────────────────────────────────────┘
+        │
+        ▼
+  PostgreSQL (Neon) — 8 tables
+  React + Vite dashboard
 ```
 
-**Causal DAG** — the scorer conditions each sensor on its physical cause:
+**Causal DAG** (DoWhy-validated structure, LinearRegression inference):
+
 ```
 op_setting_1 (Altitude) → sensor_4   (LPC outlet temperature)
 op_setting_2 (Mach)     → sensor_11  (HPC outlet temperature)
@@ -54,14 +79,30 @@ op_setting_3 (TRA)      → sensor_3   (fan inlet temperature)
 
 ---
 
-## Quick Start
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend API | FastAPI, Python 3.11 |
+| Agent pipeline | LangGraph 0.2, LangChain Core |
+| Causal reasoning | DoWhy 0.11 (DAG validation), scikit-learn (inference) |
+| LLM | Groq / Llama-3.3-70B or Gemini 2.0 Flash |
+| Database | PostgreSQL on Neon (serverless) |
+| Frontend | React 19, Vite, TypeScript, Recharts |
+| Deployment | Render (backend + frontend bundled) |
+| Data | NASA CMAPSS turbofan benchmark (FD001–FD004) |
+
+---
+
+## Quick Start (Local)
 
 ### Prerequisites
 - Python 3.11+
+- Node.js 18+
 - A [Neon](https://neon.tech) PostgreSQL project (free tier)
 - A [Groq](https://console.groq.com) API key (free tier)
 
-### Setup
+### Backend setup
 
 ```bash
 # 1. Clone
@@ -72,37 +113,47 @@ cd iot-anomaly-triage-master
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-# 3. Install dependencies
-pip install -r requirements-dev.txt   # includes jupyter, pytest, scikit-learn
-# or for server only:
-pip install -r requirements.txt
+# 3. Install
+pip install -r requirements-dev.txt
 
 # 4. Environment variables
 cp .env.example .env
-# Edit .env and fill in:
-#   DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech:6432/dbname?sslmode=require
-#   GROQ_API_KEY=your_key_here
-#   LLM_PROVIDER=groq              # or gemini
+# Fill in DATABASE_URL, GROQ_API_KEY, LLM_PROVIDER=groq
 
-# 5. Download dataset
+# 5. Download CMAPSS dataset
 python scripts/download_cmapss.py
 
 # 6. Create database schema
 python scripts/create_schema.py
 
-# 7. Compute regime coefficients (required for FD002 multi-cluster scoring)
+# 7. Compute regime coefficients
 python scripts/compute_regime_coefficients.py
 
-# 8. Start the backend
+# 8. Start backend
 uvicorn backend.main:app --reload
+# → http://localhost:8000/docs
+```
 
-# 9. Open the dashboard (in a separate terminal)
-cd dashboard && python -m http.server 3000
-# → open http://localhost:3000
+### Frontend setup
 
-# 10. Test the API
-curl http://localhost:8000/health
-# → {"status":"ok","message":"Sensor triage system is running"}
+```bash
+cd frontend
+npm install
+npm run dev
+# → http://localhost:5173
+```
+
+### Stream a dataset
+
+```bash
+# Stream 100 readings from FD001 to the local backend
+python scripts/simulate_stream.py --rows 100
+
+# With fault injection
+python scripts/simulate_stream.py --rows 500 --fault-injection
+
+# Specific engines only
+python scripts/simulate_stream.py --engines 1,2,3 --delay 0
 ```
 
 ---
@@ -110,52 +161,35 @@ curl http://localhost:8000/health
 ## Environment Variables
 
 | Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | Yes | Neon pooled connection string (port 6432, sslmode=require) |
-| `GROQ_API_KEY` | Yes | API key from console.groq.com |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Neon pooled connection string (port 6432, `sslmode=require`) |
+| `GROQ_API_KEY` | Yes | From [console.groq.com](https://console.groq.com) |
 | `LLM_PROVIDER` | Yes | `groq` or `gemini` |
-| `GEMINI_API_KEY` | If `LLM_PROVIDER=gemini` | API key from Google AI Studio |
-| `GROQ_MODEL` | No | Groq model name (default: `llama-3.3-70b-versatile`) |
-| `GEMINI_MODEL` | No | Gemini model name (default: `gemini-2.0-flash`) |
+| `GEMINI_API_KEY` | If `gemini` | From Google AI Studio |
+| `GROQ_MODEL` | No | Default: `llama-3.3-70b-versatile` |
+| `GEMINI_MODEL` | No | Default: `gemini-2.0-flash` |
 
 ---
 
 ## API Endpoints
 
 | Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Health check — used by Render for liveness |
-| POST | `/ingest` | Submit one sensor reading; returns blended anomaly decision + LLM explanation |
-| GET | `/telemetry/{id}` | Retrieve a saved telemetry window by UUID |
-| GET | `/psi/status` | Current PSI drift score per sensor |
-| POST | `/baselines/reset` | Log maintenance event, clear PSI baselines |
-| GET | `/alerts/recent` | Most recent alert events (default 20, max via `?limit=N`) |
-| GET | `/alerts/{id}/explanation` | LLM explanation + operating regime from reasoning traces |
-| GET | `/alerts/{id}/feedback` | All operator feedback for a given alert |
+|--------|------|-------------|
+| GET | `/health` | Liveness check |
+| POST | `/ingest` | Submit one sensor reading → decision + LLM explanation |
+| GET | `/cmapss/{dataset}/engines` | Fleet summary for FD001–FD004 |
+| GET | `/cmapss/{dataset}/engines/{id}` | Single engine detail + score history |
+| GET | `/cmapss/{dataset}/alerts` | Alert events for a dataset |
+| GET | `/cmapss/{dataset}/chat` | LLM assistant for fleet-level questions |
+| GET | `/alerts/recent` | Most recent alert events |
+| GET | `/alerts/{id}/explanation` | LLM explanation + reasoning trace |
 | POST | `/feedback` | Submit operator label (TRUE_POSITIVE / FALSE_POSITIVE / UNCERTAIN) |
-
-API docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### `/ingest` response fields
-
-```json
-{
-  "id": "uuid",
-  "engine_id": 1,
-  "cycle": 42,
-  "imputation_density": 0.05,
-  "stale_sensors": [],
-  "warnings": [],
-  "llm_explanation": "Elevated HPC outlet temperature residual suggests early-stage compressor degradation.",
-  "created_at": "2026-04-10T12:00:00Z"
-}
-```
+| GET | `/admin/retraining-status` | Override count + retraining recommendation |
+| GET | `/psi/status` | PSI drift score per sensor |
 
 ---
 
 ## Running Tests
-
-Always run from the project root so `conftest.py` is loaded:
 
 ```bash
 # Unit tests — no database required
@@ -165,120 +199,74 @@ pytest tests/test_anomaly.py tests/test_causal_scorer.py -v
 pytest tests/ -v
 ```
 
-In VSCode, use the **Testing sidebar** (beaker icon) — it runs pytest correctly.
-Do not use the play button on individual test files (it skips `conftest.py`).
-
----
-
-## Key Scripts
-
-| Script | Purpose |
-|---|---|
-| `scripts/download_cmapss.py` | Download 12 CMAPSS data files from GitHub mirror |
-| `scripts/create_schema.py` | Apply all 8 tables to Neon (safe to re-run) |
-| `scripts/simulate_stream.py` | POST CMAPSS rows to /ingest as a live sensor feed |
-| `scripts/compute_regime_coefficients.py` | Train KMeans (k=6) on FD002, save centroids + per-cluster causal coefficients to `data/processed/regime_coefficients.json` |
-| `scripts/ablation_study.py` | Run 4-variant ablation on FD001 (IF / z-score / causal / full pipeline) with Wilcoxon + Fisher tests |
-| `scripts/fd002_regime_eval.py` | Evaluate global z-score vs regime-aware causal on FD002 (259 engines, 6 conditions) |
-| `scripts/plot_dag.py` | Generate causal DAG figure (`paper/causal_dag.png`, `paper/causal_dag.pdf`) |
-| `scripts/lead_time_baseline.py` | Train Isolation Forest, save lead-time CSV |
-| `scripts/neon_smoke_test.py` | Quick DB connectivity check |
-
-Simulator examples:
-```bash
-python scripts/simulate_stream.py --rows 100
-python scripts/simulate_stream.py --rows 500 --fault-injection
-python scripts/simulate_stream.py --engines 1,2,3 --delay 0
-```
-
 ---
 
 ## Project Structure
 
 ```
 iot-anomaly-triage-master/
-│
 ├── backend/
-│   ├── main.py                  # FastAPI app — all endpoints + CORS
-│   ├── database.py              # SQLAlchemy engine (QueuePool → Neon)
-│   ├── models.py                # 8 SQLAlchemy Core table definitions
-│   ├── schemas.py               # Pydantic v2 request/response schemas
-│   ├── anomaly.py               # Z-score scorer + decision logic
+│   ├── main.py                  # FastAPI app + all endpoints
+│   ├── anomaly.py               # Z-score scorer
+│   ├── cmapss_api.py            # CMAPSS evaluation endpoints + G-stat computation
 │   ├── agent/
-│   │   ├── graph.py             # LangGraph 7-node pipeline definition
-│   │   └── nodes.py             # Node implementations (regime, causal, veto, LLM, …)
+│   │   ├── graph.py             # LangGraph pipeline
+│   │   └── nodes.py             # 7 node implementations
 │   └── services/
-│       ├── sensor_service.py    # Forward-fill imputation (5-cycle stale threshold)
-│       ├── causal_scorer.py     # Causal residual scorer + FALLBACK_COEFFICIENTS
-│       ├── regime_classifier.py # KMeans nearest-centroid classifier + per-cluster scoring
-│       ├── psi_monitor.py       # PSI drift detection (rolling 200 readings)
-│       └── gtest_monitor.py     # G-test sensor coupling (isentropic, sensor_11 vs sensor_15)
-│
+│       ├── causal_scorer.py     # Causal residual scoring
+│       ├── regime_classifier.py # KMeans regime classifier
+│       ├── psi_monitor.py       # PSI drift monitor
+│       ├── gtest_monitor.py     # G-test sensor coupling
+│       └── sensor_service.py   # Forward-fill imputation
+├── frontend/
+│   └── src/
+│       ├── pages/               # Overview, Engines, EngineDetail, Alerts, About, Methodology
+│       ├── components/          # ChatWidget, ScoreBar, Sparkline, Badge, Card
+│       └── lib/                 # API client, types, utils
 ├── scripts/
-│   ├── download_cmapss.py           # Download NASA dataset
-│   ├── create_schema.py             # Apply DB schema to Neon
-│   ├── simulate_stream.py           # Stream simulator with fault injection
-│   ├── compute_regime_coefficients.py  # Train KMeans + per-cluster coefs → JSON
-│   ├── ablation_study.py            # FD001 ablation (4 variants + significance tests)
-│   ├── fd002_regime_eval.py         # FD002 regime-aware vs global evaluation
-│   ├── plot_dag.py                  # Causal DAG figure (networkx → PNG/PDF)
-│   ├── lead_time_baseline.py        # Isolation Forest baseline CSV
-│   └── neon_smoke_test.py           # DB smoke test
-│
-├── dashboard/
-│   └── index.html               # Single-file HTML/JS dashboard (no build step)
-│
-├── paper/
-│   ├── manuscript.md            # Full 6-section paper (Markdown)
-│   ├── causal_dag.png           # Causal DAG figure
-│   └── causal_dag.pdf           # Causal DAG figure (LaTeX-ready)
-│
-├── tests/
-│   ├── test_connection.py       # DB connectivity
-│   ├── test_ingest.py           # /ingest + /telemetry integration tests
-│   ├── test_anomaly.py          # Z-score scorer unit tests (8 tests)
-│   └── test_causal_scorer.py    # Causal scorer unit tests (10 tests)
-│
-├── notebooks/
-│   └── 01_cmapss_eda.ipynb      # Exploratory data analysis
-│
-├── data/
-│   ├── raw/                     # CMAPSS files (gitignored)
-│   └── processed/               # CSVs + regime_coefficients.json (gitignored)
-│
-├── requirements.txt             # Server deps (installed on Render)
-├── requirements-dev.txt         # Dev deps (jupyter, pytest, scikit-learn)
+│   ├── download_cmapss.py       # Download NASA dataset
+│   ├── create_schema.py         # Apply DB schema
+│   ├── simulate_stream.py       # Live stream simulator
+│   ├── compute_regime_coefficients.py
+│   ├── ablation_study.py        # FD001 4-variant ablation
+│   ├── fd002_regime_eval.py     # FD002 multi-condition evaluation
+│   └── fd004_regime_eval.py     # FD004 multi-condition evaluation
+├── data/processed/              # Ablation CSVs + regime_coefficients.json
+├── tests/                       # pytest unit + integration tests
 ├── render.yaml                  # Render deployment config
-└── conftest.py                  # pytest path setup (project root → sys.path)
+└── requirements.txt
 ```
 
 ---
 
-## Database Schema (8 tables)
+## Evaluation
 
-```
-telemetry_windows      ← one row per sensor reading (root table)
-    │
-    ├── alert_events   ← blended anomaly score + NORMAL/UNCERTAIN/ALERT decision
-    │       │
-    │       ├── reasoning_traces      ← LangGraph node execution log (Phase 3)
-    │       ├── human_feedback        ← operator label corrections (Phase 3)
-    │       └── lead_time_measurements ← cycles-before-failure metric
-    │
-    └── dowhy_results  ← causal residual scores per reading (Phase 3)
+Evaluation scripts are in `scripts/`. Pre-computed results are in `data/processed/`:
 
-psi_baselines          ← reference distributions for PSI (standalone)
-maintenance_events     ← physical maintenance log (standalone)
-```
+| File | Contents |
+|------|----------|
+| `ablation_table.csv` | FD001: IF vs z-score vs causal vs full pipeline |
+| `fd002_regime_table.csv` | FD002: global z-score vs regime-aware causal |
+| `fd004_regime_table.csv` | FD004: global z-score vs regime-aware causal |
+| `fd003_ablation_table.csv` | FD003: same 4-variant ablation as FD001 |
+| `causal_lead_times.csv` | Per-engine first alert cycle vs true failure cycle |
+| `regime_coefficients.json` | KMeans centroids + per-cluster LinearRegression coefficients |
 
 ---
 
-## Deployment on Render
+## Deployment (Render)
 
-1. Push to GitHub
-2. Create a **Web Service** on [render.com](https://render.com) → connect repo
-3. Render auto-reads `render.yaml` — build and start commands are set
-4. Add env vars in the Render dashboard: `DATABASE_URL`, `GROQ_API_KEY`, `LLM_PROVIDER`
-5. Verify: `https://your-app.onrender.com/health`
+The `render.yaml` builds the React frontend and serves it from the FastAPI backend:
 
-Note: free tier sleeps after 15 min of inactivity — first request takes ~30s to wake up.
+```
+buildCommand: pip install -r requirements.txt && cd frontend && npm ci && npm run build
+startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+```
+
+Add env vars (`DATABASE_URL`, `GROQ_API_KEY`, `LLM_PROVIDER`) in the Render dashboard. Free tier sleeps after 15 min of inactivity — first request takes ~30 s to wake.
+
+---
+
+## Author
+
+Jahnavi Patel · College of Engineering, Northeastern University · patel.jahnavi@northeastern.edu
