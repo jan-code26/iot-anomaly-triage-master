@@ -38,16 +38,24 @@ export function Methodology() {
         </p>
       </div>
 
-      {/* ── CMAPSS Dataset ──────────────────────────────────────────────────── */}
+      {/* ── 1. CMAPSS Dataset ─────────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>NASA CMAPSS Benchmark</h2>
         <Card>
           <CardContent className="pt-5 pb-5">
+            <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>
+              The Commercial Modular Aero-Propulsion System Simulation (CMAPSS) is a NASA benchmark
+              that simulates turbofan engines running to failure under controlled fault conditions.
+              Each engine begins healthy and degrades progressively — the task is to detect the onset
+              of degradation early, giving operators a lead-time window to act before failure.
+            </p>
             <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
-              The Commercial Modular Aero-Propulsion System Simulation (CMAPSS) models turbofan engines
-              running to failure under controlled fault conditions. Each engine starts healthy and degrades
-              until failure. The test set provides the final cycles of each engine and asks: how many cycles
-              remain before failure?
+              The benchmark provides 21 sensor channels (temperatures, pressures, speeds, ratios)
+              plus three operating setting inputs per cycle. Engines are divided across four
+              sub-datasets that vary by the number of operating conditions and fault modes.
+              FD001 and FD003 operate at a single altitude/speed/throttle combination, making
+              them tractable for global statistics. FD002 and FD004 mix six distinct operating
+              conditions — the core challenge this project is designed to solve.
             </p>
             <div className="grid sm:grid-cols-2 gap-3 mb-4">
               {[
@@ -70,35 +78,129 @@ export function Methodology() {
               <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>Why FD002 / FD004 are the hard datasets</p>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 Six operating conditions (altitude × Mach × throttle combinations) create a multi-modal sensor
-                distribution. A global z-score baseline — trained on the full mixed distribution — produces 100%
-                false positive rates on both datasets (F1 = 0.000). Conditioning scores on the operating regime
-                cluster is the only approach that produces a meaningful triage signal.
+                distribution. A turbofan running at high altitude produces temperature and pressure readings that
+                are <em>normal for that regime</em> but anomalous relative to sea-level means — triggering false
+                alarms with no relation to engine health. A global z-score baseline trained on the full mixed
+                distribution produces 100% false positive rates on both FD002 and FD004 (F1 = 0.000).
+                Conditioning scores on the current operating regime cluster is the only approach that produces
+                a meaningful triage signal.
               </p>
             </div>
           </CardContent>
         </Card>
       </section>
 
-      {/* ── Causal DAG ──────────────────────────────────────────────────────── */}
+      {/* ── 2. Data Preparation ─────────────────────────────────────────────── */}
       <section>
-        <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Causal DAG</h2>
+        <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Data Preparation Pipeline</h2>
         <Card>
-          <CardContent className="pt-5">
-            <CausalDAG />
-            <p className="text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
-              Root nodes (op_settings) → latent physical variables → observed sensors. Anomaly scoring
-              computes the residual of each sensor relative to its causally-predicted value,
-              conditioned on the current operating regime.
+          <CardContent className="pt-5 pb-5 space-y-4">
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              Raw sensor streams from turbofan engines are noisy, intermittent, and arrive out of order.
+              Three preprocessing layers clean and structure the data before any scoring occurs.
             </p>
+
+            {/* Forward-fill */}
+            <div className="rounded-lg p-4 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
+              <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>1 · Forward-Fill Imputation (5-cycle stale threshold)</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Sensors occasionally drop out mid-flight. Rather than discarding partial readings or
+                substituting global means (which would corrupt regime-conditioned scores), the system
+                carries the last known value forward for up to 5 cycles. If a sensor is still missing
+                after 5 cycles it is treated as unavailable and excluded from that reading's score.
+                This prevents stale data from silently drifting into anomaly detection.
+              </p>
+            </div>
+
+            {/* PSI monitoring */}
+            <div className="rounded-lg p-4 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
+              <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>2 · PSI Distribution Drift Monitor (threshold PSI {'>'} 0.2)</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                The Population Stability Index (PSI) measures how much a sensor's distribution has shifted
+                relative to its training baseline. PSI &lt; 0.10 = stable; 0.10–0.20 = monitor; &gt; 0.20 = action required.
+                When a sensor crosses the action threshold, its baseline is automatically reset to the current
+                rolling window — the new distribution becomes the reference going forward. This handles fleet
+                upgrades, seasonal calibration drift, and sensor replacement without manual intervention.
+              </p>
+              <div className="mt-2 flex gap-3 text-[10px] font-mono">
+                <span className="px-2 py-0.5 rounded" style={{ background: 'var(--status-ok)', color: '#fff' }}>PSI &lt; 0.10 stable</span>
+                <span className="px-2 py-0.5 rounded" style={{ background: 'var(--status-warn)', color: '#fff' }}>0.10–0.20 monitor</span>
+                <span className="px-2 py-0.5 rounded" style={{ background: 'var(--status-alert)', color: '#fff' }}>&gt; 0.20 auto-reset</span>
+              </div>
+            </div>
+
+            {/* KMeans */}
+            <div className="rounded-lg p-4 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
+              <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>3 · KMeans Regime Classification (k = 6)</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Before computing any anomaly score, each reading is assigned to one of six operating regime
+                clusters. Clustering is performed on the three operating setting inputs — altitude (op_setting_1),
+                Mach number (op_setting_2), and Throttle Resolver Angle (op_setting_3). KMeans with k = 6
+                was selected by silhouette score optimisation (0.997 at k = 6 vs 0.930 at k = 5 and 0.934 at k = 7).
+                Regime assignment takes a single nearest-centroid lookup — sub-millisecond at inference time.
+                All downstream scoring — causal residuals and z-scores — uses statistics computed only from
+                training data in the same regime cluster.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </section>
 
-      {/* ── α slider ────────────────────────────────────────────────────────── */}
+      {/* ── 3. Causal DAG ─────────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Causal DAG & Scoring</h2>
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              Instead of flagging sensors that deviate from a global training mean, the system asks:
+              <em> given the current operating conditions, what value should this sensor read?</em> The
+              difference between the predicted and observed value — the causal residual — is the anomaly signal.
+            </p>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              The causal structure was derived from turbofan thermodynamics and validated using
+              DoWhy v0.11 (DAG structure tests). The graph has three root nodes — altitude, Mach, and
+              throttle setting — that drive five latent physical variables, each of which determines
+              one observed sensor. Per-request scoring uses regime-conditioned LinearRegression with
+              pre-computed coefficients for low-latency inference (DoWhy requires ≥ 2 rows; live
+              readings arrive one at a time).
+            </p>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              Hover over any node below to see its physical meaning and role in the causal chain.
+            </p>
+            <CausalDAG />
+            <p className="text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
+              Root nodes (op settings) drive latent physical variables, which determine observed sensor
+              readings. Anomaly scoring computes the per-sensor residual relative to its causally-predicted
+              value, conditioned on the current operating regime cluster.
+            </p>
+
+            {/* Physics veto */}
+            <div className="mt-4 rounded-lg p-4 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
+              <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>Physics-Based Veto — G-Test on sensor_11 / sensor_15 Coupling</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                sensor_11 (HPC outlet temperature) and sensor_15 (bypass ratio) must track each other
+                according to the isentropic compression relation. A G-test on their joint distribution
+                with χ²(df = 16) critical value of 26.30 distinguishes real engine degradation from
+                a faulty sensor reporting a spurious reading. If the coupling is intact, the alert is
+                suppressed — the anomaly is instrument noise, not engine health. This physics veto
+                is the most important false-positive filter in the pipeline.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* ── 4. α slider ───────────────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Blend Weight α</h2>
         <Card>
           <CardContent className="pt-5">
+            <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>
+              The final anomaly score blends the causal residual with a regime-conditioned z-score.
+              The blend weight α controls how much each component contributes. At α = 1 the score
+              is pure causal; at α = 0 it is pure z-score. The optimal value was determined on a
+              held-out validation split of FD001 by sweeping α from 0 to 1 and maximising F1.
+            </p>
             <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
               <code className="font-mono px-1.5 py-0.5 rounded text-xs" style={{ background: 'var(--border)' }}>
                 combined_score = α × causal_score + (1 − α) × z_score
@@ -148,11 +250,17 @@ export function Methodology() {
         </Card>
       </section>
 
-      {/* ── W sensitivity ─────────────────────────────────────────────────── */}
+      {/* ── 5. W sensitivity ──────────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Lead-Time Window W</h2>
         <Card>
           <CardContent className="pt-5">
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              An alert is counted as a true positive only if it fires within W cycles before the true
+              failure cycle. W = 100 cycles is the paper's primary evaluation window (approximately
+              equivalent to 100 flight hours). Smaller W rewards very precise late alerts; larger W
+              rewards early warnings that give more lead time for maintenance scheduling.
+            </p>
             <div className="flex gap-2 mb-4">
               {([50, 100, 150] as const).map(w => (
                 <button
@@ -206,7 +314,7 @@ export function Methodology() {
         </Card>
       </section>
 
-      {/* ── Ablation tables ───────────────────────────────────────────────── */}
+      {/* ── 6. Ablation tables ────────────────────────────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-3 flex-wrap">
           <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Ablation Results</h2>
@@ -225,47 +333,56 @@ export function Methodology() {
           </div>
         </div>
         <Card>
-          <CardContent className="pt-4 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Variant','Coverage','95% CI','Mean Lead','Median','P','R','F1','95% CI F1','r','Wilcoxon-p','Fisher-p'].map(h => (
-                    <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr
-                    key={row.variant}
-                    style={{
-                      background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg)',
-                      borderBottom: '1px solid var(--border)',
-                      fontWeight: row.f1 === Math.max(...rows.map(r => r.f1)) ? 700 : undefined,
-                    }}
-                  >
-                    <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{row.variant}</td>
-                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--accent)' }}>{(row.coverage * 100).toFixed(0)}%</td>
-                    <td className="px-3 py-2 font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      [{(row.ci_low * 100).toFixed(0)}%–{(row.ci_high * 100).toFixed(0)}%]
-                    </td>
-                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.mean_lead.toFixed(1)}</td>
-                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.median_lead.toFixed(1)}</td>
-                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.precision.toFixed(3)}</td>
-                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.recall.toFixed(3)}</td>
-                    <td className="px-3 py-2 font-mono font-bold" style={{ color: row.f1 === Math.max(...rows.map(r => r.f1)) ? 'var(--status-ok)' : 'var(--text-primary)' }}>
-                      {row.f1.toFixed(3)}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      [{row.f1_ci_low.toFixed(3)}–{row.f1_ci_high.toFixed(3)}]
-                    </td>
-                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.r != null ? row.r.toFixed(3) : '—'}</td>
-                    <td className="px-3 py-2 font-mono" style={{ color: row.wilcoxon_p === '<0.001' ? 'var(--status-ok)' : 'var(--text-muted)' }}>{row.wilcoxon_p}</td>
-                    <td className="px-3 py-2 font-mono" style={{ color: row.fisher_p === '<0.001' ? 'var(--status-ok)' : 'var(--text-muted)' }}>{row.fisher_p}</td>
+          <CardContent className="pt-4">
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              Four variants are compared on each dataset. The ablation isolates the contribution of
+              each component: replacing the anomaly scorer (Isolation Forest → z-score → causal),
+              then adding the full LangGraph pipeline with physics veto and operator feedback.
+              Coverage = fraction of engines that received at least one alert before failure.
+              Mean lead = average number of cycles between first alert and actual failure cycle.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Variant','Coverage','95% CI','Mean Lead','Median','P','R','F1','95% CI F1','r','Wilcoxon-p','Fisher-p'].map(h => (
+                      <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr
+                      key={row.variant}
+                      style={{
+                        background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg)',
+                        borderBottom: '1px solid var(--border)',
+                        fontWeight: row.f1 === Math.max(...rows.map(r => r.f1)) ? 700 : undefined,
+                      }}
+                    >
+                      <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{row.variant}</td>
+                      <td className="px-3 py-2 font-mono" style={{ color: 'var(--accent)' }}>{(row.coverage * 100).toFixed(0)}%</td>
+                      <td className="px-3 py-2 font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        [{(row.ci_low * 100).toFixed(0)}%–{(row.ci_high * 100).toFixed(0)}%]
+                      </td>
+                      <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.mean_lead.toFixed(1)}</td>
+                      <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.median_lead.toFixed(1)}</td>
+                      <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.precision.toFixed(3)}</td>
+                      <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.recall.toFixed(3)}</td>
+                      <td className="px-3 py-2 font-mono font-bold" style={{ color: row.f1 === Math.max(...rows.map(r => r.f1)) ? 'var(--status-ok)' : 'var(--text-primary)' }}>
+                        {row.f1.toFixed(3)}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        [{row.f1_ci_low.toFixed(3)}–{row.f1_ci_high.toFixed(3)}]
+                      </td>
+                      <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{row.r != null ? row.r.toFixed(3) : '—'}</td>
+                      <td className="px-3 py-2 font-mono" style={{ color: row.wilcoxon_p === '<0.001' ? 'var(--status-ok)' : 'var(--text-muted)' }}>{row.wilcoxon_p}</td>
+                      <td className="px-3 py-2 font-mono" style={{ color: row.fisher_p === '<0.001' ? 'var(--status-ok)' : 'var(--text-muted)' }}>{row.fisher_p}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <p className="text-[10px] mt-3" style={{ color: 'var(--text-muted)' }}>
               Lead time in cycles. 95% CIs bootstrapped (10 000 resamples). F1 definition: W = 100 cycles actionable window.
               Bold row = highest F1. Green p-values = significant (p &lt; 0.001).
@@ -274,37 +391,46 @@ export function Methodology() {
         </Card>
       </section>
 
-      {/* ── Regime centroids ────────────────────────────────────────────────── */}
+      {/* ── 7. Regime centroids ───────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>FD002 Regime Centroids (KMeans, k = 6)</h2>
         <Card>
-          <CardContent className="pt-4 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Cluster','N (train)','Altitude','Mach','TRA','Regime'].map(h => (
-                    <th key={h} className="text-left px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {REGIME_CENTROIDS.map((c, i) => {
-                  const colors = ['indigo','ok','warn','alert','veto','outline'] as const
-                  return (
-                    <tr key={c.cluster} style={{ background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-                      <td className="px-4 py-2 font-mono font-bold" style={{ color: 'var(--text-primary)' }}>{c.cluster}</td>
-                      <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.n_train.toLocaleString()}</td>
-                      <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.altitude.toFixed(1)}</td>
-                      <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.mach.toFixed(2)}</td>
-                      <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.tra.toFixed(1)}</td>
-                      <td className="px-4 py-2">
-                        <Badge variant={colors[i % colors.length]}>{['High-Alt Cruise','Mid-Alt Cruise','Mid-Alt Part-Pwr','Sea-Level','Low-Alt Climb','High-Alt Part-Pwr'][c.cluster]}</Badge>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <CardContent className="pt-4">
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              The six regime clusters learned from FD002 training data correspond to physically
+              interpretable operating points. Each cluster has its own set of LinearRegression
+              coefficients, one per causal branch. Silhouette score = 0.9971 at k = 6 — the six
+              clusters are extremely tight, reflecting that CMAPSS operating conditions are drawn
+              from a discrete grid rather than a continuous manifold.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Cluster','N (train)','Altitude','Mach','TRA','Regime'].map(h => (
+                      <th key={h} className="text-left px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {REGIME_CENTROIDS.map((c, i) => {
+                    const colors = ['indigo','ok','warn','alert','veto','outline'] as const
+                    return (
+                      <tr key={c.cluster} style={{ background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+                        <td className="px-4 py-2 font-mono font-bold" style={{ color: 'var(--text-primary)' }}>{c.cluster}</td>
+                        <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.n_train.toLocaleString()}</td>
+                        <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.altitude.toFixed(1)}</td>
+                        <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.mach.toFixed(2)}</td>
+                        <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-muted)' }}>{c.tra.toFixed(1)}</td>
+                        <td className="px-4 py-2">
+                          <Badge variant={colors[i % colors.length]}>{['High-Alt Cruise','Mid-Alt Cruise','Mid-Alt Part-Pwr','Sea-Level','Low-Alt Climb','High-Alt Part-Pwr'][c.cluster]}</Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
             <p className="text-[10px] mt-3" style={{ color: 'var(--text-muted)' }}>
               Silhouette score = 0.9971 at k=6 (vs 0.9300 at k=5, 0.9337 at k=7). Within-cluster inertia drops from 1133.9 at k=5 to 0.2 at k=6.
             </p>
@@ -312,11 +438,18 @@ export function Methodology() {
         </Card>
       </section>
 
-      {/* ── Alpha sweep chart ────────────────────────────────────────────────── */}
+      {/* ── 8. Alpha sweep chart ──────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>F1 vs α (FD001)</h2>
         <Card>
           <CardContent className="pt-4">
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+              This chart shows the F1 and coverage trade-off as α sweeps from 0 (pure z-score)
+              to 1 (pure causal) on FD001. F1 peaks in the 0.55–0.65 range — the blend weight
+              used in evaluation is α = 0.60. Coverage is high at low α (z-score catches most engines
+              early) but precision falls sharply. The causal component brings precision up at the
+              cost of some recall.
+            </p>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={ALPHA_SWEEP}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
