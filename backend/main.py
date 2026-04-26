@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -38,6 +39,20 @@ def _load_demo_data() -> None:
 setup_logging()
 log = get_logger("backend.main")
 _load_demo_data()
+
+
+def _warm_dataset_cache() -> None:
+    """Pre-compute all 4 CMAPSS dataset caches at startup so first user request is instant."""
+    from backend.cmapss_api import _get_dataset
+    for ds in ("FD001", "FD002", "FD003", "FD004"):
+        try:
+            _get_dataset(ds)
+            log.info("dataset_cache_warmed", extra={"dataset": ds})
+        except Exception as exc:
+            log.warning("dataset_cache_warm_failed", extra={"dataset": ds, "error": str(exc)})
+
+
+threading.Thread(target=_warm_dataset_cache, daemon=True).start()
 
 limiter = Limiter(key_func=get_remote_address)
 
